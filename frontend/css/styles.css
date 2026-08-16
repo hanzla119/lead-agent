@@ -552,25 +552,34 @@ body {
   display: flex;
   gap: 0.5rem;
   margin-bottom: 1rem;
+  flex-wrap: wrap;
 }
 
 .pitch-variant-pill {
-  flex: 1;
+  flex: 1 1 calc(33.333% - 0.5rem);
+  min-width: 130px;
   background: rgba(255, 255, 255, 0.04);
   border: 1px solid var(--border-color);
-  padding: 0.6rem;
+  padding: 0.6rem 0.75rem;
   border-radius: var(--radius-sm);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   text-align: center;
   cursor: pointer;
   color: var(--text-muted);
+  transition: all 0.15s ease;
+}
+
+.pitch-variant-pill:hover {
+  border-color: var(--border-active);
+  color: #fff;
 }
 
 .pitch-variant-pill.active {
   background: rgba(99, 102, 241, 0.2);
   border-color: var(--primary);
   color: #fff;
+  box-shadow: 0 0 10px var(--primary-glow);
 }
 
 .modal-actions {
