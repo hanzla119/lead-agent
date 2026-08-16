@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>E-Commerce Lead Generation & Outreach Agent | Talha Yousaf</title>
+  <meta name="description" content="Autonomous zero-cost e-commerce lead discovery, pixel auditor, Gemini multi-pitch generator, and review-to-send outreach platform.">
+  <link rel="stylesheet" href="/static/css/styles.css">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
+</head>
+<body>
+
+  <!-- Top Navbar -->
+  <header class="navbar">
+    <div class="brand">
+      <div class="brand-icon">⚡</div>
+      <div>
+        <h1 class="brand-title">LeadGen & Outreach Agent</h1>
+        <p class="brand-subtitle">AI Discovery • Pixel Auditor • Gemini Pitch Writer</p>
+      </div>
+    </div>
+    <div class="nav-actions">
+      <button id="privacy-toggle-btn" class="privacy-badge" title="Toggle privacy mode to mask client contacts during screen shares">
+        👁️ Privacy Mode: OFF
+      </button>
+      <button class="btn-secondary" onclick="openTestEmailModal()">
+        ⚙️ Test SMTP
+      </button>
+    </div>
+  </header>
+
+  <!-- Main Container -->
+  <main class="container">
+
+    <!-- Stats Banner -->
+    <section class="stats-grid" aria-label="Lead Generation Metrics">
+      <div class="stat-card">
+        <div class="stat-title">Total Discovered <span>🏬</span></div>
+        <div class="stat-value" id="stat-total-leads">0</div>
+        <div class="stat-indicator">Live database count</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Verified Emails <span>📧</span></div>
+        <div class="stat-value" id="stat-deliverable-emails">0</div>
+        <div class="stat-indicator">Ready for outreach</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Pixel & Tech Gaps <span>⚠️</span></div>
+        <div class="stat-value" id="stat-pixel-leaks" style="color: var(--amber);">0</div>
+        <div class="stat-indicator">High opportunity hooks</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Approved Queue <span>✓</span></div>
+        <div class="stat-value" id="stat-approved-queue" style="color: var(--cyan);">0</div>
+        <div class="stat-indicator">Ready to fire</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-title">Outreach Sent <span>🚀</span></div>
+        <div class="stat-value" id="stat-sent-emails" style="color: var(--emerald);">0</div>
+        <div class="stat-indicator">Rate-limited dispatches</div>
+      </div>
+    </section>
+
+    <!-- Two-Column Grid -->
+    <div class="app-grid">
+
+      <!-- Left Column: Agent Control Panel -->
+      <section class="panel-card">
+        <div class="panel-header">
+          <h2 class="panel-title">🎯 Lead Hunter Controls</h2>
+          <span class="badge badge-emerald">Ready</span>
+        </div>
+
+        <!-- Niche Input -->
+        <div class="form-group">
+          <label class="form-label" for="niche-input">Niche / Store Category</label>
+          <input type="text" id="niche-input" class="form-input" placeholder="e.g. Shoes, Streetwear, Jewelry, Skincare" value="Shoes">
+          <div class="tag-pills">
+            <span class="tag-pill" data-tag="Shoes">👟 Shoes</span>
+            <span class="tag-pill" data-tag="Streetwear">👕 Streetwear</span>
+            <span class="tag-pill" data-tag="Desi Fashion">👗 Desi Fashion</span>
+            <span class="tag-pill" data-tag="Supplements">💊 Supplements</span>
+            <span class="tag-pill" data-tag="Cosmetics">💄 Cosmetics</span>
+            <span class="tag-pill" data-tag="Luxury Watches">⌚ Watches</span>
+          </div>
+        </div>
+
+        <!-- Platform Filter -->
+        <div class="form-group">
+          <label class="form-label" for="platform-select">Target Platform Footprint</label>
+          <select id="platform-select" class="form-select">
+            <option value="Shopify" selected>Shopify (Highest E-Commerce Intent)</option>
+            <option value="WooCommerce">WooCommerce (WordPress)</option>
+            <option value="Instagram">Instagram Brands (Bio Links)</option>
+            <option value="LinkedIn">LinkedIn Decision-Makers (Founders/CEOs)</option>
+            <option value="Facebook">Facebook E-Commerce Pages</option>
+          </select>
+        </div>
+
+        <!-- Target Country / Region -->
+        <div class="form-group">
+          <label class="form-label" for="country-select">Target Market / Country</label>
+          <select id="country-select" class="form-select">
+            <option value="UK" selected>🇬🇧 United Kingdom (.co.uk)</option>
+            <option value="US">🇺🇸 United States</option>
+            <option value="EU">🇪🇺 Europe</option>
+            <option value="AU">🇦🇺 Australia</option>
+            <option value="CA">🇨🇦 Canada</option>
+            <option value="PK">🇵🇰 Pakistan</option>
+          </select>
+        </div>
+
+        <!-- Lead Batch Size -->
+        <div class="form-group">
+          <label class="form-label">Batch Size Target</label>
+          <div class="tier-selector">
+            <div class="tier-btn active" data-count="10">10 Leads</div>
+            <div class="tier-btn" data-count="50">50 Leads</div>
+            <div class="tier-btn" data-count="100">100 Leads</div>
+            <div class="tier-btn" data-count="200">200 Leads</div>
+          </div>
+        </div>
+
+        <!-- Launch Button -->
+        <button id="btn-start-campaign" class="btn-primary">
+          🚀 Start Autonomous Lead Agent
+        </button>
+
+        <!-- Live Progress Container -->
+        <div id="progress-container" class="progress-container" style="display: none;">
+          <div style="display: flex; justify-content: space-between; font-size: 0.8rem; margin-bottom: 0.35rem;">
+            <span id="progress-step-text" style="color: var(--text-muted);">Initializing...</span>
+            <span id="progress-percent-text" style="color: var(--cyan); font-weight: 700;">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div id="progress-bar" class="progress-bar-fill"></div>
+          </div>
+          <div id="log-terminal" class="log-terminal">
+            <div>Agent initialized and awaiting instructions...</div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Right Column: Interactive Leads Table & Review Queue -->
+      <section class="panel-card">
+        <div class="queue-header">
+          <div class="filter-tabs">
+            <div class="filter-tab active" data-filter="all">All Discovered</div>
+            <div class="filter-tab" data-filter="ready_for_review">📧 Review Queue</div>
+            <div class="filter-tab" data-filter="pixel_leaks">⚠️ Pixel Leaks</div>
+            <div class="filter-tab" data-filter="approved">✓ Approved</div>
+            <div class="filter-tab" data-filter="sent">🚀 Outreach Sent</div>
+          </div>
+
+          <div class="queue-actions">
+            <button class="btn-secondary" onclick="exportCSV()" title="Export all leads to CSV">
+              📥 Export CSV
+            </button>
+            <button class="btn-primary btn-emerald" onclick="sendAllApprovedBatch()" style="padding: 0.6rem 1rem; font-size: 0.85rem;" title="Fire approved emails with rate-limited delays">
+              ⚡ Send Approved Batch
+            </button>
+          </div>
+        </div>
+
+        <!-- Leads Table -->
+        <div class="table-responsive">
+          <table class="leads-table">
+            <thead>
+              <tr>
+                <th>Store / Brand</th>
+                <th>Platform</th>
+                <th>Contact Email</th>
+                <th>Pixel Status</th>
+                <th>Audit Opportunity</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="leads-table-body">
+              <tr>
+                <td colspan="7" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">
+                  Loading leads...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+    </div>
+  </main>
+
+  <!-- Pitch Review & Editor Modal -->
+  <div id="review-modal" class="modal-backdrop">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div>
+          <h3 id="modal-store-name" style="font-size: 1.25rem; font-weight: 800;">Store Name</h3>
+          <span id="modal-domain" style="color: var(--cyan); font-size: 0.85rem;">domain.com</span>
+        </div>
+        <button class="modal-close" onclick="closeReviewModal()">&times;</button>
+      </div>
+
+      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem; margin-bottom: 1.25rem;">
+        <div style="font-size: 0.8rem; color: var(--text-muted);">Primary Audit Hook:</div>
+        <div id="modal-opportunity" style="font-weight: 700; color: var(--amber); margin-top: 0.2rem;">Missing Meta Pixel</div>
+        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Recipient: <strong id="modal-recipient" style="color: var(--emerald);">info@store.com</strong></div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Select Gemini AI Pitch Angle:</label>
+        <div id="modal-variant-pills" class="pitch-variant-pills">
+          <!-- Populated dynamically -->
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="modal-subject-input">Email Subject Line (High Open Rate):</label>
+        <input type="text" id="modal-subject-input" class="form-input" value="Quick question about your store">
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="modal-body-input">Personalized Email Pitch:</label>
+        <textarea id="modal-body-input" class="form-input" rows="8" style="resize: vertical; line-height: 1.5;"></textarea>
+      </div>
+
+      <div class="modal-actions">
+        <button id="btn-modal-approve" class="btn-primary btn-emerald" onclick="approveModalLead()">
+          ✓ Approve for Batch Queue
+        </button>
+        <button id="btn-modal-send" class="btn-primary" onclick="sendModalLeadNow()" style="background: linear-gradient(135deg, var(--cyan), #0284c7);">
+          ✉️ Send Right Now (1-Click)
+        </button>
+        <button class="btn-secondary" onclick="closeReviewModal()">
+          Close
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Test Email Modal -->
+  <div id="test-email-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 480px;">
+      <div class="modal-header">
+        <div>
+          <h3 style="font-size: 1.15rem; font-weight: 800;">⚙️ Test Gmail SMTP Sender</h3>
+          <p style="font-size: 0.75rem; color: var(--text-muted);">Sender: marketingbytalha@gmail.com</p>
+        </div>
+        <button class="modal-close" onclick="closeTestEmailModal()">&times;</button>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="test-email-target">Recipient Email Address:</label>
+        <input type="email" id="test-email-target" class="form-input" placeholder="e.g. talhayousaf.mt@gmail.com" value="marketingbytalha@gmail.com">
+      </div>
+
+      <p style="font-size: 0.8rem; color: var(--text-dim); margin-bottom: 1.25rem;">
+        Sends a live test outreach message through your connected Gmail account using STARTTLS to verify deliverability.
+      </p>
+
+      <div class="modal-actions">
+        <button id="btn-send-test-email" class="btn-primary" onclick="sendTestEmailAction()">
+          Send Test Email
+        </button>
+        <button class="btn-secondary" onclick="closeTestEmailModal()">
+          Cancel
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script src="/static/js/app.js"></script>
+</body>
+</html>
