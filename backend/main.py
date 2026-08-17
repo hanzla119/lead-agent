@@ -27,6 +27,8 @@ from backend.database import (
     get_all_leads,
     get_lead_by_id,
     update_lead_status,
+    delete_lead,
+    prune_invalid_leads,
     log_email_send,
     get_stats
 )
@@ -108,42 +110,58 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
 
     try:
         # 1. DISCOVERY
-        ACTIVE_CAMPAIGN["current_step"] = f"Searching web for '{req.niche}' {req.platform} stores..."
+        ACTIVE_CAMPAIGN["current_step"] = f"Searching web for '{req.niche}' {req.platform} stores ({req.country})..."
         ACTIVE_CAMPAIGN["progress_percentage"] = 15
         await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
 
+        # Ask discovery for a 1.5x candidate buffer so we achieve the exact target count of valid stores
+        candidate_target = max(req.target_count * 2, 20) if req.target_count > 10 else 15
         candidates = discover_leads(
             niche=req.niche,
             platform=req.platform,
             country=req.country,
-            limit=req.target_count
+            limit=candidate_target
         )
         
-        ACTIVE_CAMPAIGN["logs"].append(f"🔍 Discovered {len(candidates)} potential store candidates.")
-        ACTIVE_CAMPAIGN["leads_found"] = len(candidates)
-        ACTIVE_CAMPAIGN["progress_percentage"] = 30
+        ACTIVE_CAMPAIGN["logs"].append(f"🔍 Discovered {len(candidates)} candidate store domains across multiple search channels.")
+        ACTIVE_CAMPAIGN["progress_percentage"] = 25
         await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
 
         # 2. AUDIT, ENRICH & PITCH GENERATION
         total_candidates = len(candidates)
         if total_candidates == 0:
             ACTIVE_CAMPAIGN["status"] = "completed"
-            ACTIVE_CAMPAIGN["current_step"] = "No additional stores found for this exact query."
+            ACTIVE_CAMPAIGN["current_step"] = "No stores found for this exact query."
             ACTIVE_CAMPAIGN["progress_percentage"] = 100
             await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
             return
 
+        valid_stores_count = 0
+
         for idx, cand in enumerate(candidates):
+            if valid_stores_count >= req.target_count:
+                break
+                
             domain = cand["domain"]
             store_name = cand["store_name"]
             url = cand["url"]
 
-            ACTIVE_CAMPAIGN["current_step"] = f"[{idx+1}/{total_candidates}] Auditing & Enriching {domain}..."
-            ACTIVE_CAMPAIGN["progress_percentage"] = int(30 + ((idx + 1) / total_candidates) * 65)
+            ACTIVE_CAMPAIGN["current_step"] = f"[{valid_stores_count+1}/{req.target_count}] Auditing & Enriching {domain}..."
+            ACTIVE_CAMPAIGN["progress_percentage"] = min(98, int(25 + ((valid_stores_count + 1) / req.target_count) * 72))
             await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
 
-            # Audit Website
+            # Audit Website & E-commerce Verification
             audit_res, html_content = audit_website(url)
+            
+            # If domain is not an active e-commerce store, skip saving junk
+            if not audit_res.get("is_valid_store", False):
+                reason = audit_res.get("rejection_reason", "Non-store page")
+                ACTIVE_CAMPAIGN["logs"].append(f"⚠️ Skipped {domain} ({reason}).")
+                await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
+                continue
+
+            valid_stores_count += 1
+            ACTIVE_CAMPAIGN["leads_found"] = valid_stores_count
             
             # Enrich Contacts
             enrich_res = enrich_store_contacts(url, initial_html=html_content)
@@ -176,24 +194,24 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
 
             if enrich_res.get("email"):
                 ACTIVE_CAMPAIGN["leads_contactable"] += 1
-                ACTIVE_CAMPAIGN["logs"].append(f"📧 Found verified email for {store_name} ({enrich_res['email']}). Generating Gemini AI pitches...")
+                ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}). Generating AI pitches...")
                 await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
                 
                 # Generate AI Pitches
                 pitches = generate_pitches_with_gemini(lead_dict)
                 lead_dict["pitch_variants"] = pitches
             else:
-                ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}), no public email found.")
+                ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}), no direct email.")
 
             # Save to Database
             save_lead(lead_dict)
             await manager.broadcast({"type": "lead_discovered", "data": lead_dict})
-            await asyncio.sleep(0.3)
+            await asyncio.sleep(0.2)
 
         ACTIVE_CAMPAIGN["status"] = "completed"
         ACTIVE_CAMPAIGN["current_step"] = "Lead generation pipeline completed!"
         ACTIVE_CAMPAIGN["progress_percentage"] = 100
-        ACTIVE_CAMPAIGN["logs"].append(f"✅ Finished! Found {ACTIVE_CAMPAIGN['leads_found']} stores, {ACTIVE_CAMPAIGN['leads_contactable']} ready for review.")
+        ACTIVE_CAMPAIGN["logs"].append(f"✅ Finished! Verified {ACTIVE_CAMPAIGN['leads_found']} stores, {ACTIVE_CAMPAIGN['leads_contactable']} ready for review.")
         await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
 
     except Exception as e:
@@ -230,6 +248,18 @@ async def fetch_lead_detail(lead_id: int):
         raise HTTPException(status_code=404, detail="Lead not found")
     return lead
 
+@app.delete("/api/leads/{lead_id}")
+async def remove_lead(lead_id: int):
+    deleted = delete_lead(lead_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Lead not found")
+    return {"message": f"Lead {lead_id} deleted successfully"}
+
+@app.post("/api/leads/prune")
+async def prune_leads_endpoint():
+    count = prune_invalid_leads()
+    return {"message": f"Pruned {count} invalid or non-store lead records", "pruned_count": count}
+
 @app.post("/api/leads/{lead_id}/review")
 async def review_lead(
     lead_id: int,
@@ -256,7 +286,6 @@ async def send_single_lead_email(req: EmailSendRequest):
     if not lead or not lead.get("email"):
         raise HTTPException(status_code=400, detail="Lead does not have a valid email")
 
-    # Pick pitch
     subject = req.custom_subject
     body = req.custom_body
 

@@ -236,6 +236,48 @@ def update_lead_status(lead_id: int, status: str, selected_pitch: Optional[int] 
     conn.commit()
     conn.close()
 
+def delete_lead(lead_id: int) -> bool:
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM leads WHERE id = ?", (lead_id,))
+    cursor.execute("DELETE FROM sending_logs WHERE lead_id = ?", (lead_id,))
+    conn.commit()
+    deleted = cursor.rowcount > 0
+    conn.close()
+    return deleted
+
+def prune_invalid_leads() -> int:
+    """Removes agency, blog, SaaS, or dummy placeholder entries from database."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    junk_domains = [
+        "analyzify.com", "skailama.com", "builtwith.com", "suttoncommerce.co.uk",
+        "glazedigital.com", "findniche.com", "theshitbot.com", "skool.com",
+        "sellercenter.io", "huptechweb.com", "getclipara.com", "magenest.com",
+        "shopify.com", "dickssportinggoods.com", "amazon.com", "ebay.com"
+    ]
+    
+    # 1. Delete rows matching known non-store domains or non-ecommerce TLDs
+    placeholders = ",".join(["?"] * len(junk_domains))
+    cursor.execute(f"DELETE FROM leads WHERE domain IN ({placeholders}) OR domain LIKE '%.dev' OR domain LIKE '%.app' OR domain LIKE '%shopify.dev%'", junk_domains)
+    deleted_count = cursor.rowcount
+    
+    # 2. Fix rows with dummy/placeholder emails like xxx@xxx.xxx or blocked@...
+    cursor.execute("""
+    UPDATE leads 
+    SET email = NULL, email_status = 'not_found'
+    WHERE email LIKE '%xxx@%' 
+       OR email LIKE 'blocked@%' 
+       OR email LIKE 'test@%' 
+       OR email LIKE '%@shopify.com' 
+       OR email LIKE '%@sentry.io'
+    """)
+    
+    conn.commit()
+    conn.close()
+    return deleted_count
+
 def log_email_send(lead_id: int, recipient_email: str, subject: str, body: str, status: str, error_message: str = ""):
     conn = get_connection()
     cursor = conn.cursor()

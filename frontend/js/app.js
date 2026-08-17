@@ -297,6 +297,7 @@ function renderLeadsTable() {
           <div style="display:flex; gap:0.4rem;">
             ${hasEmail ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem;" onclick="openReviewModal(${lead.id})">🔍 Review Pitch</button>` : ''}
             ${hasEmail && lead.review_status !== 'sent' ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; color:var(--emerald); border-color:var(--emerald);" onclick="quickApprove(${lead.id})">✓ Approve</button>` : ''}
+            <button class="btn-secondary" style="padding: 0.35rem 0.5rem; font-size:0.75rem; color:var(--rose); border-color:rgba(244,63,94,0.3);" onclick="deleteLeadAction(${lead.id})" title="Delete lead">🗑️</button>
           </div>
         </td>
       </tr>
@@ -400,6 +401,35 @@ async function quickApprove(leadId) {
     fetchLeads();
   } catch (e) {
     showToast('Failed to approve: ' + e.message, 'error');
+  }
+}
+
+async function deleteLeadAction(leadId) {
+  if (!confirm('Are you sure you want to delete this lead?')) return;
+  try {
+    const res = await fetch(`/api/leads/${leadId}`, { method: 'DELETE' });
+    if (res.ok) {
+      showToast('Lead deleted successfully', 'success');
+      fetchStats();
+      fetchLeads();
+    } else {
+      showToast('Failed to delete lead', 'error');
+    }
+  } catch (e) {
+    showToast('Delete error: ' + e.message, 'error');
+  }
+}
+
+async function pruneDatabaseAction() {
+  if (!confirm('Clean database by removing non-store/agency domains and dummy placeholder emails?')) return;
+  try {
+    const res = await fetch('/api/leads/prune', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || `Pruned ${data.pruned_count} invalid records`, 'success');
+    fetchStats();
+    fetchLeads();
+  } catch (e) {
+    showToast('Prune error: ' + e.message, 'error');
   }
 }
 
