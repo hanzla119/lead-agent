@@ -78,15 +78,16 @@ def create_email_message(to_email: str, subject: str, body_text: str) -> MIMEMul
 
 async def send_single_email_async(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
     """
-    Asynchronously dispatches a single email via Gmail SMTP with STARTTLS.
+    Asynchronously dispatches a single email via Gmail SMTP with Port 465 SSL and Port 587 STARTTLS fallback.
     """
     msg = create_email_message(to_email, subject, body_text)
     
+    # 1. Try Port 465 with direct SSL (Bypasses cloud firewall blocks on port 587)
     try:
         smtp_client = aiosmtplib.SMTP(
             hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            start_tls=True,
+            port=465,
+            use_tls=True,
             timeout=15
         )
         await smtp_client.connect()
@@ -94,25 +95,51 @@ async def send_single_email_async(to_email: str, subject: str, body_text: str) -
         await smtp_client.send_message(msg)
         await smtp_client.quit()
         return {"success": True, "error": None}
-    except Exception as e:
-        error_msg = str(e)
-        print(f"SMTP sending error to {to_email}: {error_msg}")
-        return {"success": False, "error": error_msg}
+    except Exception as e465:
+        # 2. Fallback to Port 587 with STARTTLS
+        try:
+            smtp_client = aiosmtplib.SMTP(
+                hostname=SMTP_HOST,
+                port=587,
+                start_tls=True,
+                timeout=15
+            )
+            await smtp_client.connect()
+            await smtp_client.login(SENDER_EMAIL, SMTP_PASSWORD)
+            await smtp_client.send_message(msg)
+            await smtp_client.quit()
+            return {"success": True, "error": None}
+        except Exception as e587:
+            error_msg = str(e465)
+            print(f"SMTP sending error to {to_email}: SSL(465): {e465} | STARTTLS(587): {e587}")
+            return {"success": False, "error": error_msg}
 
 def send_test_email_sync(to_email: str, subject: str, message: str) -> Dict[str, Any]:
     """
     Synchronous test sender to verify SMTP connection instantly.
+    Tries Port 465 (SSL) first, then falls back to Port 587 (STARTTLS).
     """
     msg = create_email_message(to_email, subject, message)
+    
+    # 1. Try Port 465 SSL
     try:
-        server = smtplib.SMTP(SMTP_HOST, SMTP_PORT, timeout=12)
-        server.starttls()
+        server = smtplib.SMTP_SSL(SMTP_HOST, 465, timeout=12)
         server.login(SENDER_EMAIL, SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
         return {"success": True, "message": f"Successfully delivered test email to {to_email}"}
-    except Exception as e:
-        return {"success": False, "error": str(e)}
+    except Exception as e465:
+        # 2. Fallback to Port 587 STARTTLS
+        try:
+            server = smtplib.SMTP(SMTP_HOST, 587, timeout=12)
+            server.starttls()
+            server.login(SENDER_EMAIL, SMTP_PASSWORD)
+            server.send_message(msg)
+            server.quit()
+            return {"success": True, "message": f"Successfully delivered test email to {to_email}"}
+        except Exception as e587:
+            print(f"SMTP test error to {to_email}: SSL(465): {e465} | STARTTLS(587): {e587}")
+            return {"success": False, "error": str(e465)}
 
 async def wait_rate_limit_delay(min_sec: int = MIN_DELAY_SECONDS, max_sec: int = MAX_DELAY_SECONDS):
     """

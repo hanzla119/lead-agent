@@ -8,7 +8,7 @@ SENDER_NAME = os.getenv("SENDER_NAME", "Talha Yousaf")
 SENDER_EMAIL = os.getenv("SENDER_EMAIL", "marketingbytalha@gmail.com")
 SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").replace(" ", "")
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
-SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 
 # AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
