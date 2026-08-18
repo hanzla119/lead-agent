@@ -17,7 +17,7 @@ SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
 
 # AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")
+GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 # Outreach Safety & Limits
 MIN_DELAY_SECONDS = int(os.getenv("MIN_DELAY_SECONDS", "25"))
