@@ -10,6 +10,11 @@ SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "").replace(" ", "")
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.gmail.com")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "465"))
 
+# Cloud HTTP Email Fallbacks (Bypasses Render/Cloud free tier SMTP port blocks)
+RESEND_API_KEY = os.getenv("RESEND_API_KEY", "")
+BREVO_API_KEY = os.getenv("BREVO_API_KEY", "")
+SENDGRID_API_KEY = os.getenv("SENDGRID_API_KEY", "")
+
 # AI Configuration
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
 GEMINI_MODEL = os.getenv("GEMINI_MODEL", "gemini-2.0-flash")

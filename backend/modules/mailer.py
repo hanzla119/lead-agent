@@ -3,6 +3,7 @@ import random
 import socket
 import ssl
 import smtplib
+import requests
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, Any, Optional
@@ -13,6 +14,9 @@ from backend.config import (
     SMTP_PASSWORD,
     SMTP_HOST,
     SMTP_PORT,
+    RESEND_API_KEY,
+    BREVO_API_KEY,
+    SENDGRID_API_KEY,
     MIN_DELAY_SECONDS,
     MAX_DELAY_SECONDS
 )
@@ -77,6 +81,53 @@ def create_email_message(to_email: str, subject: str, body_text: str) -> MIMEMul
     msg.attach(part2)
     return msg
 
+def send_via_resend_http(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
+    """Sends email via Resend HTTP API over port 443 (Allowed by all cloud providers)."""
+    try:
+        sender_formatted = f"{SENDER_NAME} <{SENDER_EMAIL}>"
+        formatted_body = body_text.replace("\n", "<br>")
+        resp = requests.post(
+            "https://api.resend.com/emails",
+            headers={"Authorization": f"Bearer {RESEND_API_KEY}", "Content-Type": "application/json"},
+            json={
+                "from": sender_formatted,
+                "to": [to_email],
+                "subject": subject,
+                "html": f"<div style='font-family:sans-serif;font-size:15px;color:#2d3748;'>{formatted_body}</div>",
+                "text": body_text
+            },
+            timeout=12
+        )
+        if resp.status_code in [200, 201]:
+            return {"success": True, "message": f"Successfully delivered via Resend HTTP to {to_email}", "error": None}
+        else:
+            return {"success": False, "error": f"Resend API error ({resp.status_code}): {resp.text}"}
+    except Exception as e:
+        return {"success": False, "error": f"Resend HTTP error: {e}"}
+
+def send_via_brevo_http(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
+    """Sends email via Brevo (Sendinblue) HTTP API over port 443."""
+    try:
+        formatted_body = body_text.replace("\n", "<br>")
+        resp = requests.post(
+            "https://api.brevo.com/v3/smtp/email",
+            headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
+            json={
+                "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
+                "to": [{"email": to_email}],
+                "subject": subject,
+                "htmlContent": f"<div style='font-family:sans-serif;font-size:15px;color:#2d3748;'>{formatted_body}</div>",
+                "textContent": body_text
+            },
+            timeout=12
+        )
+        if resp.status_code in [200, 201]:
+            return {"success": True, "message": f"Successfully delivered via Brevo HTTP to {to_email}", "error": None}
+        else:
+            return {"success": False, "error": f"Brevo API error ({resp.status_code}): {resp.text}"}
+    except Exception as e:
+        return {"success": False, "error": f"Brevo HTTP error: {e}"}
+
 def get_ipv4_smtp_ssl(host: str = SMTP_HOST, port: int = 465, timeout: int = 15) -> smtplib.SMTP_SSL:
     """
     Forces IPv4 resolution and direct SSL encryption to bypass cloud container (Render/Docker)
@@ -115,29 +166,34 @@ def get_ipv4_smtp_ssl(host: str = SMTP_HOST, port: int = 465, timeout: int = 15)
 
 def send_single_email_sync(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
     """
-    Synchronous email dispatcher using forced IPv4 SSL with STARTTLS fallback.
+    Universal email dispatcher supporting HTTP APIs (Resend, Brevo) and direct Gmail SMTP (SSL 465 / 587).
     """
+    # 1. HTTP APIs (Bypasses Render/Cloud outbound port blocks over Port 443 HTTPS)
+    if RESEND_API_KEY:
+        return send_via_resend_http(to_email, subject, body_text)
+    if BREVO_API_KEY:
+        return send_via_brevo_http(to_email, subject, body_text)
+
+    # 2. Direct Gmail SMTP via Forced IPv4 SSL on Port 465
     msg = create_email_message(to_email, subject, body_text)
-    
-    # 1. Primary: Forced IPv4 SSL on Port 465 (100% reliable on Render/Cloud hosts)
     try:
-        server = get_ipv4_smtp_ssl(SMTP_HOST, 465, timeout=15)
+        server = get_ipv4_smtp_ssl(SMTP_HOST, 465, timeout=12)
         server.login(SENDER_EMAIL, SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
         return {"success": True, "message": f"Successfully delivered email to {to_email}", "error": None}
     except Exception as e465:
-        # 2. Secondary: Fallback to standard SMTP on Port 587
+        # 3. Fallback to standard SMTP on Port 587
         try:
-            server = smtplib.SMTP(SMTP_HOST, 587, timeout=12)
+            server = smtplib.SMTP(SMTP_HOST, 587, timeout=10)
             server.starttls()
             server.login(SENDER_EMAIL, SMTP_PASSWORD)
             server.send_message(msg)
             server.quit()
             return {"success": True, "message": f"Successfully delivered email to {to_email}", "error": None}
         except Exception as e587:
-            error_msg = str(e465)
-            print(f"SMTP error to {to_email}: SSL(465): {e465} | STARTTLS(587): {e587}")
+            error_msg = f"SMTP Connection Failed: {e465}. On Render free tier, outbound SMTP ports may be blocked. Add BREVO_API_KEY or RESEND_API_KEY in Render Environment to send via HTTPS Port 443."
+            print(f"SMTP error to {to_email}: {error_msg}")
             return {"success": False, "error": error_msg}
 
 async def send_single_email_async(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
