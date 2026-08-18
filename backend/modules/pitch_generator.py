@@ -108,32 +108,32 @@ def get_fallback_pitches(lead_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     store_name = lead_data.get("store_name", "your brand")
     niche = lead_data.get("niche", "e-commerce")
     country = lead_data.get("country", "UK")
-    opportunity = lead_data.get("primary_opportunity", "Missing Meta Pixel tracking")
+    opportunity = lead_data.get("primary_opportunity", "Scaling Meta & Google Ads ROAS")
     
     return [
         {
             "id": 1,
-            "angle": "£696k Scale & Case Study Proof",
+            "angle": "E-Commerce Growth & Scaling Case Study (£696k)",
             "subject": f"idea for {store_name}'s ad performance",
-            "body": f"Hi {store_name} Team,\n\nI recently helped scale an independent {niche} brand past £696,000 in gross revenue by restructuring their Meta and Google Performance Max campaigns around high-intent buyers.\n\nLooking at {store_name}, I spotted 2 immediate creative angles and catalog ad structures that could drive lower customer acquisition costs (CAC) without increasing your current ad spend.\n\nWould you be open to seeing the 3-point growth breakdown tailored specifically for {store_name}?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
+            "body": f"Hi {store_name} Team,\n\nI came across {store_name} while researching leading {niche} brands in the {country} and really loved your product lineup.\n\nI specialize in helping e-commerce & Shopify brands scale their monthly sales through performance marketing (Meta & Google Ads) and conversion rate optimization (CRO).\n\nRecently, we helped an independent brand in your space scale past £696,000 in gross revenue by restructuring their ad creatives and eliminating wasted ad spend.\n\nLooking at {store_name}, I spotted 2 immediate creative angles and catalog ad structures that could help drive lower customer acquisition costs without increasing your current ad budget.\n\nWould you be open to checking out a quick 3-point growth breakdown tailored specifically for {store_name}?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
         },
         {
             "id": 2,
-            "angle": "Tracking & Revenue Leak Audit",
-            "subject": f"growth opportunity for {store_name}",
-            "body": f"Hi {store_name} Team,\n\nI was checking out {store_name}'s {niche} collection and really loved your product lineup.\n\nWhile reviewing your storefront, I noticed a key opportunity around your ad tracking and attribution setup ({opportunity}).\n\nWhen we resolved this for another brand in your space, their retargeting ROAS jumped within 3 weeks because Meta and Google were finally able to attribute checkout signals and optimize for high-value repeat customers.\n\nWould it make sense to share a brief breakdown of how we fixed this with your growth team?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
+            "angle": "Ad Creative & UGC Angles (Lower CAC)",
+            "subject": f"3 ad concepts for {store_name}",
+            "body": f"Hi team at {store_name},\n\nI’ve been following {store_name}'s growth in the {country} {niche} market and love your brand aesthetic.\n\nWe specialize in developing high-converting short-form ad creatives and UGC hooks on TikTok & Meta that turn casual scrollers into profitable first-time buyers.\n\nI mapped out 3 specific ad concepts and hook angles designed specifically for {store_name}'s customer demographic. Mind if I email the 3 concepts over for your marketing team to review?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Shopify Specialist"
         },
         {
             "id": 3,
-            "angle": "Viral TikTok & Reels Ad Concepts",
-            "subject": f"3 ad concepts for {store_name}",
-            "body": f"Hi team at {store_name},\n\nI’ve been following {store_name}'s growth in the {country} {niche} market and love your brand aesthetic.\n\nWe specialize in developing high-converting short-form ad creatives and UGC hooks that turn casual scrollers into profitable first-time buyers.\n\nI mapped out 3 specific ad concepts and hook angles designed specifically for {store_name}'s customer demographic. Mind if I email the 3 concepts over for your marketing team to review?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Shopify Specialist"
-        },
-        {
-            "id": 4,
             "angle": "4.89% Conversion Rate (CRO) Quick-Win",
             "subject": f"2 quick CRO tweaks for {store_name}",
             "body": f"Hi {store_name} Team,\n\nI was reviewing your mobile product pages for {store_name}.\n\nBy optimizing sticky Add-to-Cart layouts and streamlining checkout friction on Shopify, we've helped stores in your space push store conversion rates up to 4.89%.\n\nI put together a quick 2-point checklist specifically for {store_name}. Would you like me to send it over?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Conversion Specialist"
+        },
+        {
+            "id": 4,
+            "angle": "Retargeting & Ad Tracking Audit",
+            "subject": f"growth opportunity for {store_name}",
+            "body": f"Hi {store_name} Team,\n\nI was checking out {store_name}'s {niche} collection and noticed an immediate opportunity to improve your ad retargeting and attribution tracking.\n\nWhen we resolved this for another brand in your space, their retargeting ROAS jumped within 3 weeks because Meta and Google were finally able to attribute checkout signals and optimize for high-value repeat customers.\n\nWould it make sense to share a brief breakdown of how we fixed this with your growth team?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
         },
         {
             "id": 5,
