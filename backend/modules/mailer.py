@@ -109,16 +109,18 @@ def send_via_brevo_http(to_email: str, subject: str, body_text: str) -> Dict[str
     """Sends email via Brevo (Sendinblue) HTTP API over port 443."""
     try:
         formatted_body = body_text.replace("\n", "<br>")
+        payload = {
+            "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
+            "to": [{"email": to_email}],
+            "replyTo": {"name": SENDER_NAME, "email": SENDER_EMAIL},
+            "subject": subject,
+            "htmlContent": f"<div style='font-family:-apple-system,BlinkMacSystemFont,Segoe UI,Roboto,sans-serif;font-size:15px;color:#2d3748;line-height:1.6;'>{formatted_body}</div>",
+            "textContent": body_text
+        }
         resp = requests.post(
             "https://api.brevo.com/v3/smtp/email",
             headers={"api-key": BREVO_API_KEY, "Content-Type": "application/json"},
-            json={
-                "sender": {"name": SENDER_NAME, "email": SENDER_EMAIL},
-                "to": [{"email": to_email}],
-                "subject": subject,
-                "htmlContent": f"<div style='font-family:sans-serif;font-size:15px;color:#2d3748;'>{formatted_body}</div>",
-                "textContent": body_text
-            },
+            json=payload,
             timeout=12
         )
         if resp.status_code in [200, 201]:
