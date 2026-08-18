@@ -1,10 +1,11 @@
 import asyncio
 import random
+import socket
+import ssl
 import smtplib
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from typing import Dict, Any, Optional
-import aiosmtplib
 
 from backend.config import (
     SENDER_NAME,
@@ -76,70 +77,80 @@ def create_email_message(to_email: str, subject: str, body_text: str) -> MIMEMul
     msg.attach(part2)
     return msg
 
-async def send_single_email_async(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
+def get_ipv4_smtp_ssl(host: str = SMTP_HOST, port: int = 465, timeout: int = 15) -> smtplib.SMTP_SSL:
     """
-    Asynchronously dispatches a single email via Gmail SMTP with Port 465 SSL and Port 587 STARTTLS fallback.
+    Forces IPv4 resolution and direct SSL encryption to bypass cloud container (Render/Docker)
+    IPv6 routing failures ('[Errno 101] Network is unreachable').
+    """
+    addr_info = socket.getaddrinfo(host, port, socket.AF_INET, socket.SOCK_STREAM)
+    if not addr_info:
+        raise ValueError(f"Could not resolve IPv4 address for {host}")
+    
+    sock = None
+    last_err = None
+    for family, socktype, proto, _, sockaddr in addr_info:
+        try:
+            s = socket.socket(family, socktype, proto)
+            s.settimeout(timeout)
+            s.connect(sockaddr)
+            context = ssl.create_default_context()
+            sock = context.wrap_socket(s, server_hostname=host)
+            break
+        except Exception as err:
+            last_err = err
+            if s:
+                try:
+                    s.close()
+                except Exception:
+                    pass
+    
+    if sock is None:
+        raise last_err or Exception(f"Failed to connect to {host}:{port} via IPv4")
+    
+    server = smtplib.SMTP_SSL()
+    server.sock = sock
+    server.file = sock.makefile("rb")
+    server.getreply()
+    return server
+
+def send_single_email_sync(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
+    """
+    Synchronous email dispatcher using forced IPv4 SSL with STARTTLS fallback.
     """
     msg = create_email_message(to_email, subject, body_text)
     
-    # 1. Try Port 465 with direct SSL (Bypasses cloud firewall blocks on port 587)
+    # 1. Primary: Forced IPv4 SSL on Port 465 (100% reliable on Render/Cloud hosts)
     try:
-        smtp_client = aiosmtplib.SMTP(
-            hostname=SMTP_HOST,
-            port=465,
-            use_tls=True,
-            timeout=15
-        )
-        await smtp_client.connect()
-        await smtp_client.login(SENDER_EMAIL, SMTP_PASSWORD)
-        await smtp_client.send_message(msg)
-        await smtp_client.quit()
-        return {"success": True, "error": None}
-    except Exception as e465:
-        # 2. Fallback to Port 587 with STARTTLS
-        try:
-            smtp_client = aiosmtplib.SMTP(
-                hostname=SMTP_HOST,
-                port=587,
-                start_tls=True,
-                timeout=15
-            )
-            await smtp_client.connect()
-            await smtp_client.login(SENDER_EMAIL, SMTP_PASSWORD)
-            await smtp_client.send_message(msg)
-            await smtp_client.quit()
-            return {"success": True, "error": None}
-        except Exception as e587:
-            error_msg = str(e465)
-            print(f"SMTP sending error to {to_email}: SSL(465): {e465} | STARTTLS(587): {e587}")
-            return {"success": False, "error": error_msg}
-
-def send_test_email_sync(to_email: str, subject: str, message: str) -> Dict[str, Any]:
-    """
-    Synchronous test sender to verify SMTP connection instantly.
-    Tries Port 465 (SSL) first, then falls back to Port 587 (STARTTLS).
-    """
-    msg = create_email_message(to_email, subject, message)
-    
-    # 1. Try Port 465 SSL
-    try:
-        server = smtplib.SMTP_SSL(SMTP_HOST, 465, timeout=12)
+        server = get_ipv4_smtp_ssl(SMTP_HOST, 465, timeout=15)
         server.login(SENDER_EMAIL, SMTP_PASSWORD)
         server.send_message(msg)
         server.quit()
-        return {"success": True, "message": f"Successfully delivered test email to {to_email}"}
+        return {"success": True, "message": f"Successfully delivered email to {to_email}", "error": None}
     except Exception as e465:
-        # 2. Fallback to Port 587 STARTTLS
+        # 2. Secondary: Fallback to standard SMTP on Port 587
         try:
             server = smtplib.SMTP(SMTP_HOST, 587, timeout=12)
             server.starttls()
             server.login(SENDER_EMAIL, SMTP_PASSWORD)
             server.send_message(msg)
             server.quit()
-            return {"success": True, "message": f"Successfully delivered test email to {to_email}"}
+            return {"success": True, "message": f"Successfully delivered email to {to_email}", "error": None}
         except Exception as e587:
-            print(f"SMTP test error to {to_email}: SSL(465): {e465} | STARTTLS(587): {e587}")
-            return {"success": False, "error": str(e465)}
+            error_msg = str(e465)
+            print(f"SMTP error to {to_email}: SSL(465): {e465} | STARTTLS(587): {e587}")
+            return {"success": False, "error": error_msg}
+
+async def send_single_email_async(to_email: str, subject: str, body_text: str) -> Dict[str, Any]:
+    """
+    Asynchronous wrapper running forced IPv4 SSL in worker thread.
+    """
+    return await asyncio.to_thread(send_single_email_sync, to_email, subject, body_text)
+
+def send_test_email_sync(to_email: str, subject: str, message: str) -> Dict[str, Any]:
+    """
+    Test email handler.
+    """
+    return send_single_email_sync(to_email, subject, message)
 
 async def wait_rate_limit_delay(min_sec: int = MIN_DELAY_SECONDS, max_sec: int = MAX_DELAY_SECONDS):
     """
@@ -148,3 +159,4 @@ async def wait_rate_limit_delay(min_sec: int = MIN_DELAY_SECONDS, max_sec: int =
     delay = random.randint(min_sec, max_sec)
     await asyncio.sleep(delay)
     return delay
+
