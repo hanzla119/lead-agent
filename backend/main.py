@@ -173,6 +173,9 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
                 # Enrich Contacts
                 enrich_res = enrich_store_contacts(url, initial_html=html_content)
 
+                # Auto-approval check
+                is_auto = bool(req.auto_approve and enrich_res.get("email"))
+                
                 # Combine lead data
                 lead_dict = {
                     "domain": domain,
@@ -203,7 +206,7 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
                     "pitch_variants": [],
                     "multi_channel_pitches": {},
                     "selected_pitch_index": 0,
-                    "review_status": "pending",
+                    "review_status": "approved" if is_auto else "pending",
                     "tags": [f"tier-{audit_res.get('lead_tier', 'Silver').lower()}"]
                 }
 
@@ -214,9 +217,11 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
 
                 if enrich_res.get("email"):
                     ACTIVE_CAMPAIGN["leads_contactable"] += 1
-                    ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}). Score: {lead_dict['lead_score']}/100.")
+                    status_log = "⚡ Auto-Approved for Outreach Queue" if is_auto else "Queued for Review"
+                    ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}) -> {status_log}. Score: {lead_dict['lead_score']}/100.")
                 else:
                     ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}). Score: {lead_dict['lead_score']}/100.")
+
 
                 # Save to Database
                 save_lead(lead_dict)
@@ -347,6 +352,24 @@ async def batch_review_leads(payload: Dict[str, Any]):
     for lid in lead_ids:
         update_lead_status(lid, status)
     return {"message": f"Updated {len(lead_ids)} leads to {status}"}
+
+@app.post("/api/leads/approve-all")
+async def approve_all_verified_leads():
+    """Approves all pending leads that have a deliverable email address."""
+    from backend.database import get_connection
+    conn = get_connection()
+    cursor = conn.cursor()
+    cursor.execute("""
+        UPDATE leads 
+        SET review_status = 'approved'
+        WHERE review_status = 'pending' AND email IS NOT NULL AND email != ''
+    """)
+    updated_count = cursor.rowcount
+    conn.commit()
+    conn.close()
+    return {"message": f"Successfully approved {updated_count} verified lead(s) for the outreach queue!", "approved_count": updated_count}
+
+
 
 @app.post("/api/outreach/send-single")
 async def send_single_lead_email(req: EmailSendRequest):

@@ -66,7 +66,9 @@ class CampaignRequest(BaseModel):
     platform: str = Field("Shopify", description="Shopify, WooCommerce, Instagram, LinkedIn, Facebook")
     country: str = Field("UK", description="UK, US, EU, AU, CA, PK")
     target_count: int = Field(10, description="10, 50, 100, 200")
+    auto_approve: bool = Field(False, description="Automatically approve verified email leads into the outreach queue")
     custom_keywords: Optional[str] = None
+
 
 class CampaignStatus(BaseModel):
     id: str

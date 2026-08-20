@@ -1,6 +1,7 @@
 // Application State
 let state = {
   privacyMode: false,
+  autoApprove: true,
   activeFilter: 'all',
   searchQuery: '',
   filterValueTier: 'all',
@@ -16,6 +17,7 @@ let state = {
   ws: null,
   searchDebounceTimer: null
 };
+
 
 // DOM Elements
 const elements = {
@@ -256,6 +258,59 @@ async function triggerSearchFilter() {
   }
 }
 
+function setApprovalMode(mode) {
+  state.autoApprove = (mode === 'auto');
+  const btnAuto = document.getElementById('btn-mode-auto');
+  const btnManual = document.getElementById('btn-mode-manual');
+  const badge = document.getElementById('approval-mode-badge');
+  
+  if (btnAuto) btnAuto.classList.toggle('active', state.autoApprove);
+  if (btnManual) btnManual.classList.toggle('active', !state.autoApprove);
+  
+  if (badge) {
+    if (state.autoApprove) {
+      badge.className = 'badge badge-emerald';
+      badge.innerText = '⚡ Auto-Approve Verified';
+    } else {
+      badge.className = 'badge badge-indigo';
+      badge.innerText = '🛡️ Manual Review';
+    }
+  }
+  showToast(state.autoApprove ? '⚡ Auto-approval mode activated! Leads with verified emails will queue automatically.' : '🛡️ Manual review mode activated! Leads will await your approval.', 'success');
+}
+
+function handleCountryChange(country) {
+  const bannerText = document.getElementById('flagship-offer-banner-text');
+  if (!bannerText) return;
+  
+  const c = (country || 'UK').toUpperCase();
+  if (c === 'UK') {
+    bannerText.innerHTML = `<strong>"Scale Shopify store from £10k to £30k/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>`;
+  } else if (c === 'EU') {
+    bannerText.innerHTML = `<strong>"Scale Shopify store from €10k to €30k/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>`;
+  } else if (c === 'PK') {
+    bannerText.innerHTML = `<strong>"Scale Shopify store from 1M to 3M PKR/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>`;
+  } else if (c === 'AU') {
+    bannerText.innerHTML = `<strong>"Scale Shopify store from $10k to $30k AUD/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>`;
+  } else if (c === 'CA') {
+    bannerText.innerHTML = `<strong>"Scale Shopify store from $10k to $30k CAD/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>`;
+  } else {
+    bannerText.innerHTML = `<strong>"Scale Shopify store from $10k to $30k/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>`;
+  }
+}
+
+async function approveAllVerifiedAction() {
+  try {
+    const res = await fetch('/api/leads/approve-all', { method: 'POST' });
+    const data = await res.json();
+    showToast(data.message || 'All verified leads approved! ⚡', 'success');
+    fetchStats();
+    triggerSearchFilter();
+  } catch (e) {
+    showToast('Approve all error: ' + e.message, 'error');
+  }
+}
+
 async function startCampaign() {
   const niche = elements.nicheInput.value.trim();
   if (!niche) {
@@ -267,7 +322,8 @@ async function startCampaign() {
     niche: niche,
     platform: elements.platformSelect.value,
     country: elements.countrySelect.value,
-    target_count: state.targetCount
+    target_count: state.targetCount,
+    auto_approve: state.autoApprove
   };
 
   elements.btnStartCampaign.disabled = true;
@@ -282,13 +338,14 @@ async function startCampaign() {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    showToast('Campaign started! Discovering stores & analyzing tracking gaps...', 'success');
+    showToast(`Campaign started (${state.autoApprove ? 'Auto-Approve ON ⚡' : 'Manual Review 🛡️'})! Discovering stores...`, 'success');
   } catch (e) {
     showToast('Failed to start campaign: ' + e.message, 'error');
     elements.btnStartCampaign.disabled = false;
     elements.btnStartCampaign.innerHTML = `🚀 Start Autonomous Lead Agent`;
   }
 }
+
 
 // Render Table with Numbering & Separate Lead View
 function renderLeadsTable() {
