@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Apollo-Style Lead Intelligence & Multi-Channel Outreach Agent | Talha Yousaf</title>
-  <meta name="description" content="Apollo-style lead discovery, Google Ads tracking auditor, Gemini multi-channel pitch generator, and review-to-send outreach platform.">
-  <link rel="stylesheet" href="/static/css/styles.css?v=2.2">
+  <meta name="description" content="Apollo-style lead discovery, Google Ads tracking auditor, Gemini multi-channel pitch generator, CRM response tracker, and review-to-send outreach platform.">
+  <link rel="stylesheet" href="/static/css/styles.css?v=3.0">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
 <body>
@@ -16,7 +16,7 @@
       <div class="brand-icon">⚡</div>
       <div>
         <h1 class="brand-title">Apollo-Style Lead Intelligence & Outreach</h1>
-        <p class="brand-subtitle">Google Ads 45-Day Scale Guarantee • Multi-Channel Copy • LinkedIn • IG • Reddit</p>
+        <p class="brand-subtitle">Google Ads 45-Day Scale Guarantee • Multi-Channel CRM • LinkedIn • IG • Reddit</p>
       </div>
     </div>
     <div class="nav-actions">
@@ -50,9 +50,9 @@
         <div class="stat-indicator">45-day scale targets ($10k->$30k)</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Hot Leads (Score 70+) <span>🔥</span></div>
-        <div class="stat-value" id="stat-hot-leads" style="color: var(--cyan);">0</div>
-        <div class="stat-indicator">High opportunity scores</div>
+        <div class="stat-title">Client Replies / Warm <span>💬</span></div>
+        <div class="stat-value" id="stat-replied-leads" style="color: var(--cyan);">0</div>
+        <div class="stat-indicator">Active conversations & deals</div>
       </div>
       <div class="stat-card">
         <div class="stat-title">Outreach Dispatched <span>🚀</span></div>
@@ -156,7 +156,7 @@
         <div class="search-filter-box">
           <div class="search-input-wrapper">
             <span class="search-icon">🔍</span>
-            <input type="text" id="search-query-input" class="search-input" placeholder="Search by Store Name, Domain, Founder, Tech, or Keyword...">
+            <input type="text" id="search-query-input" class="search-input" placeholder="Search by Store Name, Domain, Founder, Email, CRM Notes, or Keyword...">
             <button id="search-clear-btn" class="search-clear-btn" style="display: none;" onclick="clearSearch()">&times;</button>
           </div>
 
@@ -194,6 +194,7 @@
           <div class="filter-tabs">
             <div class="filter-tab active" data-filter="all">All Discovered</div>
             <div class="filter-tab" data-filter="ready_for_review">📧 Review Queue</div>
+            <div class="filter-tab" data-filter="replied">💬 Client Replied</div>
             <div class="filter-tab" data-filter="google_ads_gaps">📈 Google Ads Gaps</div>
             <div class="filter-tab" data-filter="pixel_leaks">⚠️ Pixel Leaks</div>
             <div class="filter-tab" data-filter="approved">✓ Approved</div>
@@ -218,12 +219,12 @@
           <table class="leads-table">
             <thead>
               <tr>
+                <th style="width: 50px;">#</th>
                 <th>Store / Brand</th>
                 <th>Score & Value</th>
                 <th>Decision-Maker & Channels</th>
                 <th>Tech Audit</th>
-                <th>Scaling Hook</th>
-                <th>Status</th>
+                <th>Status & CRM</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -241,41 +242,106 @@
     </div>
   </main>
 
-  <!-- Multi-Channel Pitch Review & Outreach Modal -->
-  <div id="review-modal" class="modal-backdrop">
-    <div class="modal-card" style="max-width: 780px;">
+  <!-- Comprehensive Lead Detail, CRM & Multi-Channel Studio Modal -->
+  <div id="lead-crm-modal" class="modal-backdrop">
+    <div class="modal-card" style="max-width: 840px;">
+      
+      <!-- Modal Header -->
       <div class="modal-header">
         <div>
-          <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <h3 id="modal-store-name" style="font-size: 1.25rem; font-weight: 800;">Store Name</h3>
+          <div style="display: flex; align-items: center; gap: 0.6rem; flex-wrap: wrap;">
+            <span id="modal-lead-number" class="badge badge-indigo" style="font-size:0.75rem;">#1</span>
+            <h3 id="modal-store-name" style="font-size: 1.35rem; font-weight: 800; color: #fff;">Store Name</h3>
             <span id="modal-tier-badge" class="badge badge-emerald">Gold Tier</span>
-            <span id="modal-score-badge" class="badge badge-indigo">Score 85/100</span>
+            <span id="modal-score-badge" class="score-badge score-hot">Score 85/100</span>
           </div>
-          <span id="modal-domain" style="color: var(--cyan); font-size: 0.85rem;">domain.com</span>
+          <div style="display: flex; gap: 0.75rem; align-items: center; margin-top: 0.3rem;">
+            <a id="modal-domain-link" href="#" target="_blank" style="color: var(--cyan); font-size: 0.85rem; text-decoration: none; font-weight: 600;">
+              <span id="modal-domain">domain.com</span> ↗
+            </a>
+            <span style="color: var(--text-dim); font-size: 0.75rem;">•</span>
+            <span id="modal-meta-info" style="color: var(--text-muted); font-size: 0.8rem;">Shopify • UK</span>
+          </div>
         </div>
-        <button class="modal-close" onclick="closeReviewModal()">&times;</button>
+        <button class="modal-close" onclick="closeLeadModal()">&times;</button>
       </div>
 
-      <!-- Lead Summary Header -->
-      <div class="modal-summary-box">
-        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">Primary Scaling Opportunity:</div>
-            <div id="modal-opportunity" style="font-weight: 700; color: var(--amber); margin-top: 0.2rem; font-size: 0.85rem;">
-              Missing Google Ads & Shopping capture
+      <!-- CRM Response & Contact Details Card -->
+      <div class="crm-editor-card">
+        <div class="crm-card-title">
+          <span>👤 Decision-Maker Details & CRM Response Log</span>
+          <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: normal;">Update status when client replies</span>
+        </div>
+
+        <div class="crm-grid-fields">
+          <div class="crm-field">
+            <label class="crm-label" for="crm-founder-name">Contact Person / Founder Name:</label>
+            <input type="text" id="crm-founder-name" class="form-input crm-input" placeholder="e.g. Tzvi Goral (Founder & CEO)">
+          </div>
+
+          <div class="crm-field">
+            <label class="crm-label" for="crm-email">Contact Email Address:</label>
+            <input type="email" id="crm-email" class="form-input crm-input" placeholder="e.g. info@brand.com">
+          </div>
+
+          <div class="crm-field">
+            <label class="crm-label" for="crm-phone">Phone / WhatsApp Number:</label>
+            <input type="text" id="crm-phone" class="form-input crm-input" placeholder="e.g. +44 7123 456789">
+          </div>
+
+          <div class="crm-field">
+            <label class="crm-label" for="crm-deal-value">Estimated Revenue / Deal Value:</label>
+            <input type="text" id="crm-deal-value" class="form-input crm-input" placeholder="e.g. $10k-$50k / $2,500/mo retainer">
+          </div>
+        </div>
+
+        <!-- CRM Status Selector & Quick Buttons -->
+        <div style="margin-top: 0.75rem;">
+          <label class="crm-label">Lead Status Pipeline:</label>
+          <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center; margin-top: 0.25rem;">
+            <select id="crm-review-status" class="filter-select" style="padding: 0.45rem 0.75rem; font-size: 0.82rem; font-weight: 700; background: #0f172a; color:#fff;">
+              <option value="pending">⏳ Pending Review</option>
+              <option value="approved">✓ Approved for Outreach</option>
+              <option value="sent">🚀 Outreach Sent</option>
+              <option value="replied">💬 Client Replied</option>
+              <option value="interested">🔥 Warm / Interested</option>
+              <option value="booked">📞 Call Booked / Meeting</option>
+              <option value="won">🏆 Deal Closed / Won</option>
+              <option value="rejected">❌ Skipped / Lost</option>
+            </select>
+
+            <div class="crm-quick-status-group">
+              <button class="btn-quick-status" onclick="setQuickStatus('replied')">💬 Mark Replied</button>
+              <button class="btn-quick-status" onclick="setQuickStatus('interested')">🔥 Interested</button>
+              <button class="btn-quick-status" onclick="setQuickStatus('booked')">📞 Call Booked</button>
+              <button class="btn-quick-status" onclick="setQuickStatus('won')">🏆 Won</button>
             </div>
           </div>
-          <div>
-            <div style="font-size: 0.75rem; color: var(--text-muted);">Decision-Maker:</div>
-            <div style="font-size: 0.85rem;">
-              <strong id="modal-founder" style="color: #fff;">Founder</strong> • <strong id="modal-recipient" style="color: var(--emerald);">info@store.com</strong>
-            </div>
-          </div>
+        </div>
+
+        <!-- CRM Notes Textarea -->
+        <div style="margin-top: 0.75rem;">
+          <label class="crm-label" for="crm-notes">CRM Activity Notes & Conversation History:</label>
+          <textarea id="crm-notes" class="form-input crm-input" rows="2" placeholder="e.g. Client replied asking for Google Shopping ROAS case study. Send 2-min Loom video on Thursday."></textarea>
+        </div>
+
+        <div style="display: flex; justify-content: flex-end; margin-top: 0.6rem;">
+          <button id="btn-save-crm" class="btn-primary" onclick="saveLeadCRMInfo()" style="padding: 0.4rem 1rem; font-size: 0.8rem; background: linear-gradient(135deg, #10b981, #059669);">
+            💾 Save Client Info & CRM Notes
+          </button>
+        </div>
+      </div>
+
+      <!-- Opportunity Summary -->
+      <div class="modal-summary-box" style="margin-top: 0.85rem;">
+        <div style="font-size: 0.75rem; color: var(--text-muted);">Primary Scaling Hook:</div>
+        <div id="modal-opportunity" style="font-weight: 700; color: var(--amber); margin-top: 0.2rem; font-size: 0.85rem;">
+          Missing Google Ads & Shopping capture
         </div>
       </div>
 
       <!-- Channel Tabs Switcher -->
-      <div class="modal-channel-tabs">
+      <div class="modal-channel-tabs" style="margin-top: 0.85rem;">
         <div class="channel-tab active" data-channel="email" onclick="switchModalChannel('email')">
           ✉️ Email Pitch (45-Day Scale)
         </div>
@@ -309,7 +375,7 @@
 
         <div class="form-group">
           <label class="form-label" for="modal-body-input">Personalized Email Pitch:</label>
-          <textarea id="modal-body-input" class="form-input" rows="8" style="resize: vertical; line-height: 1.5;"></textarea>
+          <textarea id="modal-body-input" class="form-input" rows="7" style="resize: vertical; line-height: 1.5;"></textarea>
         </div>
       </div>
 
@@ -371,7 +437,7 @@
         <button id="btn-modal-send" class="btn-primary" onclick="sendModalLeadNow()" style="background: linear-gradient(135deg, var(--cyan), #0284c7);">
           ✉️ Send Email Right Now (1-Click)
         </button>
-        <button class="btn-secondary" onclick="closeReviewModal()">
+        <button class="btn-secondary" onclick="closeLeadModal()">
           Close
         </button>
       </div>
@@ -409,6 +475,6 @@
     </div>
   </div>
 
-  <script src="/static/js/app.js?v=2.2"></script>
+  <script src="/static/js/app.js?v=3.0"></script>
 </body>
 </html>

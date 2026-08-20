@@ -120,3 +120,22 @@ class BulkActionRequest(BaseModel):
     action: str  # 'approve', 'reject', 'delete', 'tag'
     tag_name: Optional[str] = None
 
+class LeadUpdateRequest(BaseModel):
+    store_name: Optional[str] = None
+    founder_name: Optional[str] = None
+    founder_title: Optional[str] = None
+    email: Optional[str] = None
+    phone: Optional[str] = None
+    est_monthly_revenue: Optional[str] = None
+    deal_value: Optional[str] = None
+    lead_score: Optional[int] = None
+    lead_tier: Optional[str] = None
+    review_status: Optional[str] = None  # pending, approved, sent, replied, interested, booked, won, rejected
+    notes: Optional[str] = None
+    linkedin: Optional[str] = None
+    instagram: Optional[str] = None
+    reddit_username: Optional[str] = None
+    primary_opportunity: Optional[str] = None
+    tags: Optional[List[str]] = None
+
+

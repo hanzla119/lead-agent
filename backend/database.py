@@ -68,7 +68,9 @@ def init_db():
         ("has_active_meta_ads", "INTEGER DEFAULT 0"),
         ("active_ad_count", "INTEGER DEFAULT 0"),
         ("multi_channel_pitches", "TEXT DEFAULT '{}'"),
-        ("tags", "TEXT DEFAULT '[]'")
+        ("tags", "TEXT DEFAULT '[]'"),
+        ("notes", "TEXT DEFAULT ''"),
+        ("deal_value", "TEXT DEFAULT ''")
     ]
     for col_name, col_def in migrations:
         if col_name not in existing_cols:
@@ -77,40 +79,15 @@ def init_db():
             except Exception as e:
                 print(f"Migration note ({col_name}): {e}")
 
-    # Create FTS5 Virtual Table for ultra-fast instant searches (if supported)
-    try:
-        cursor.execute("""
-        CREATE VIRTUAL TABLE IF NOT EXISTS leads_fts USING fts5(
-            domain, store_name, niche, founder_name, email, primary_opportunity, tags,
-            content='leads', content_rowid='id'
-        )
-        """)
-        
-        # FTS Triggers for sync
-        cursor.execute("""
-        CREATE TRIGGER IF NOT EXISTS leads_ai AFTER INSERT ON leads BEGIN
-            INSERT INTO leads_fts(rowid, domain, store_name, niche, founder_name, email, primary_opportunity, tags)
-            VALUES (new.id, new.domain, new.store_name, new.niche, new.founder_name, new.email, new.primary_opportunity, new.tags);
-        END;
-        """)
-        cursor.execute("""
-        CREATE TRIGGER IF NOT EXISTS leads_ad AFTER DELETE ON leads BEGIN
-            INSERT INTO leads_fts(leads_fts, rowid, domain, store_name, niche, founder_name, email, primary_opportunity, tags)
-            VALUES('delete', old.id, old.domain, old.store_name, old.niche, old.founder_name, old.email, old.primary_opportunity, old.tags);
-        END;
-        """)
-        cursor.execute("""
-        CREATE TRIGGER IF NOT EXISTS leads_au AFTER UPDATE ON leads BEGIN
-            INSERT INTO leads_fts(leads_fts, rowid, domain, store_name, niche, founder_name, email, primary_opportunity, tags)
-            VALUES('delete', old.id, old.domain, old.store_name, old.niche, old.founder_name, old.email, old.primary_opportunity, old.tags);
-            INSERT INTO leads_fts(rowid, domain, store_name, niche, founder_name, email, primary_opportunity, tags)
-            VALUES (new.id, new.domain, new.store_name, new.niche, new.founder_name, new.email, new.primary_opportunity, new.tags);
-        END;
-        """)
-    except Exception as e:
-        print(f"FTS5 initialization note (fallback will be used): {e}")
+    # Create standard high-speed indexes
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_domain ON leads(domain);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_store_name ON leads(store_name);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_email ON leads(email);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_status ON leads(review_status);")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_leads_score ON leads(lead_score);")
     
     # Campaigns Table
+
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS campaigns (
         id TEXT PRIMARY KEY,
@@ -179,6 +156,9 @@ def _format_lead_row(row_dict: Dict[str, Any], privacy_mode: bool = False) -> Di
     except Exception:
         row_dict["tags"] = []
 
+    row_dict["notes"] = row_dict.get("notes") or ""
+    row_dict["deal_value"] = row_dict.get("deal_value") or ""
+
     if privacy_mode:
         if row_dict.get("email"):
             parts = row_dict["email"].split("@")
@@ -189,6 +169,7 @@ def _format_lead_row(row_dict: Dict[str, Any], privacy_mode: bool = False) -> Di
             row_dict["phone"] = p[:4] + "****" + p[-2:] if len(p) > 6 else "***"
             
     return row_dict
+
 
 def save_lead(lead_data: Dict[str, Any]) -> int:
     conn = get_connection()
@@ -328,14 +309,13 @@ def search_leads(
     conditions = []
     params = []
     
-    # 1. Text Search across store name, domain, founder, niche, opportunity, tags
-    if query_text and query_text.strip():
-        q = f"%{query_text.strip()}%"
-        conditions.append("""(
-            domain LIKE ? OR store_name LIKE ? OR founder_name LIKE ? 
-            OR niche LIKE ? OR primary_opportunity LIKE ? OR tags LIKE ? OR est_monthly_revenue LIKE ?
-        )""")
-        params.extend([q, q, q, q, q, q, q])
+    # 1. Full-Text Search (Store name, domain, founder, niche, tags, notes, email)
+    if query_text:
+        term = f"%{query_text}%"
+        conditions.append("""
+            (domain LIKE ? OR store_name LIKE ? OR founder_name LIKE ? OR niche LIKE ? OR tags LIKE ? OR est_monthly_revenue LIKE ? OR email LIKE ? OR notes LIKE ? OR phone LIKE ?)
+        """)
+        params.extend([term, term, term, term, term, term, term, term, term])
         
     # 2. Score Range Filter
     if min_score is not None:
@@ -387,6 +367,8 @@ def search_leads(
             conditions.append("has_meta_pixel = 0")
         elif status == "google_ads_gaps":
             conditions.append("has_google_ads = 0")
+        elif status == "replied":
+            conditions.append("review_status IN ('replied', 'interested', 'booked', 'won')")
         else:
             conditions.append("review_status = ?")
             params.append(status)
@@ -423,6 +405,42 @@ def get_lead_by_id(lead_id: int) -> Optional[Dict[str, Any]]:
     if not row:
         return None
     return _format_lead_row(dict(row))
+
+def update_lead_crm(lead_id: int, updates: Dict[str, Any]) -> bool:
+    """Updates CRM fields, notes, responses, client contact info, and status."""
+    conn = get_connection()
+    cursor = conn.cursor()
+    
+    allowed_fields = [
+        "store_name", "founder_name", "founder_title", "email", "phone",
+        "deal_value", "est_monthly_revenue", "lead_score", "lead_tier",
+        "review_status", "notes", "linkedin", "instagram", "reddit_username",
+        "primary_opportunity"
+    ]
+    
+    set_clauses = []
+    params = []
+    
+    for field in allowed_fields:
+        if field in updates and updates[field] is not None:
+            set_clauses.append(f"{field} = ?")
+            params.append(updates[field])
+            
+    if "tags" in updates and updates["tags"] is not None:
+        set_clauses.append("tags = ?")
+        params.append(json.dumps(updates["tags"]))
+        
+    if not set_clauses:
+        conn.close()
+        return False
+        
+    params.append(lead_id)
+    sql = f"UPDATE leads SET {', '.join(set_clauses)} WHERE id = ?"
+    cursor.execute(sql, params)
+    conn.commit()
+    success = cursor.rowcount > 0
+    conn.close()
+    return success
 
 def update_lead_status(lead_id: int, status: str, selected_pitch: Optional[int] = None, custom_variants: Optional[List[Dict[str, Any]]] = None):
     conn = get_connection()
@@ -530,6 +548,9 @@ def get_stats() -> Dict[str, Any]:
     cursor.execute("SELECT COUNT(*) FROM leads WHERE review_status = 'sent'")
     sent_emails = cursor.fetchone()[0]
     
+    cursor.execute("SELECT COUNT(*) FROM leads WHERE review_status IN ('replied', 'interested', 'booked', 'won')")
+    replied_leads = cursor.fetchone()[0]
+    
     cursor.execute("SELECT COUNT(*) FROM leads WHERE linkedin IS NOT NULL AND linkedin != ''")
     linkedin_leads = cursor.fetchone()[0]
     
@@ -547,8 +568,8 @@ def get_stats() -> Dict[str, Any]:
         "google_ads_gaps": google_ads_gaps,
         "approved_queue": approved_queue,
         "sent_emails": sent_emails,
+        "replied_leads": replied_leads,
         "linkedin_leads": linkedin_leads,
         "instagram_leads": instagram_leads,
         "hot_leads": hot_leads
     }
-

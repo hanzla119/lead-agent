@@ -22,6 +22,7 @@ from backend.models import (
     LeadSearchRequest,
     TagUpdateRequest,
     BulkActionRequest,
+    LeadUpdateRequest,
     Lead
 )
 from backend.database import (
@@ -30,6 +31,7 @@ from backend.database import (
     get_all_leads,
     get_lead_by_id,
     search_leads,
+    update_lead_crm,
     update_lead_status,
     update_lead_tags,
     delete_lead,
@@ -317,10 +319,20 @@ async def review_lead(
     update_lead_status(lead_id, status, selected_pitch=selected_pitch, custom_variants=custom_variants)
     return {"message": f"Lead {lead_id} updated to {status}"}
 
+@app.put("/api/leads/{lead_id}")
+async def update_lead_endpoint(lead_id: int, req: LeadUpdateRequest):
+    updates = req.model_dump(exclude_unset=True)
+    success = update_lead_crm(lead_id, updates)
+    if not success:
+        raise HTTPException(status_code=404, detail="Lead not found or no valid fields to update")
+    updated_lead = get_lead_by_id(lead_id)
+    return {"message": f"Lead {lead_id} CRM information updated successfully", "lead": updated_lead}
+
 @app.post("/api/leads/{lead_id}/tags")
 async def update_tags_endpoint(lead_id: int, req: TagUpdateRequest):
     update_lead_tags(lead_id, req.tags)
     return {"message": "Tags updated", "tags": req.tags}
+
 
 @app.post("/api/leads/batch-review")
 async def batch_review_leads(payload: Dict[str, Any]):

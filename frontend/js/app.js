@@ -32,7 +32,7 @@ const elements = {
   statTotalLeads: document.getElementById('stat-total-leads'),
   statDeliverableEmails: document.getElementById('stat-deliverable-emails'),
   statGoogleGaps: document.getElementById('stat-google-gaps'),
-  statHotLeads: document.getElementById('stat-hot-leads'),
+  statRepliedLeads: document.getElementById('stat-replied-leads'),
   statSentEmails: document.getElementById('stat-sent-emails'),
   privacyToggleBtn: document.getElementById('privacy-toggle-btn'),
   searchQueryInput: document.getElementById('search-query-input'),
@@ -41,7 +41,7 @@ const elements = {
   filterChannel: document.getElementById('filter-channel'),
   filterTechGap: document.getElementById('filter-tech-gap'),
   filterSort: document.getElementById('filter-sort'),
-  reviewModal: document.getElementById('review-modal'),
+  leadCrmModal: document.getElementById('lead-crm-modal'),
   testEmailModal: document.getElementById('test-email-modal')
 };
 
@@ -216,7 +216,7 @@ async function fetchStats() {
     if (elements.statTotalLeads) elements.statTotalLeads.innerText = data.total_leads || 0;
     if (elements.statDeliverableEmails) elements.statDeliverableEmails.innerText = data.deliverable_emails || 0;
     if (elements.statGoogleGaps) elements.statGoogleGaps.innerText = data.google_ads_gaps || 0;
-    if (elements.statHotLeads) elements.statHotLeads.innerText = data.hot_leads || 0;
+    if (elements.statRepliedLeads) elements.statRepliedLeads.innerText = data.replied_leads || 0;
     if (elements.statSentEmails) elements.statSentEmails.innerText = data.sent_emails || 0;
   } catch (e) {
     console.error('Failed to fetch stats:', e);
@@ -290,7 +290,7 @@ async function startCampaign() {
   }
 }
 
-// Render Table
+// Render Table with Numbering & Separate Lead View
 function renderLeadsTable() {
   const leads = state.leads || [];
 
@@ -305,7 +305,7 @@ function renderLeadsTable() {
     return;
   }
 
-  elements.leadsTableBody.innerHTML = leads.map(lead => {
+  elements.leadsTableBody.innerHTML = leads.map((lead, idx) => {
     const hasEmail = !!lead.email;
     const score = lead.lead_score || 50;
     const tier = lead.lead_tier || 'Silver';
@@ -350,17 +350,29 @@ function renderLeadsTable() {
       ? `<span class="badge badge-emerald" style="font-size:0.68rem;">Meta Pixel</span>`
       : `<span class="badge badge-rose" style="font-size:0.68rem;">❌ Pixel Leak</span>`;
 
-    // Status Badge
+    // Status Badge & CRM Indicator
     let statusBadge = `<span class="badge badge-indigo">Pending</span>`;
     if (lead.review_status === 'approved') statusBadge = `<span class="badge badge-emerald">✓ Approved</span>`;
     if (lead.review_status === 'sent') statusBadge = `<span class="badge badge-emerald" style="background: rgba(16,185,129,0.25);">✉️ Sent</span>`;
-    if (lead.review_status === 'failed') statusBadge = `<span class="badge badge-rose">Failed</span>`;
+    if (lead.review_status === 'replied') statusBadge = `<span class="badge badge-replied">💬 Replied</span>`;
+    if (lead.review_status === 'interested') statusBadge = `<span class="badge badge-interested">🔥 Interested</span>`;
+    if (lead.review_status === 'booked') statusBadge = `<span class="badge badge-booked">📞 Call Booked</span>`;
+    if (lead.review_status === 'won') statusBadge = `<span class="badge badge-won">🏆 Won</span>`;
+    if (lead.review_status === 'failed' || lead.review_status === 'rejected') statusBadge = `<span class="badge badge-rose">Skipped</span>`;
+
+    const notesIndicator = lead.notes && lead.notes.trim()
+      ? `<div style="font-size:0.68rem; color:var(--cyan); margin-top:3px;" title="${escapeHtml(lead.notes)}">📝 Notes saved</div>`
+      : '';
 
     return `
       <tr>
-        <td>
-          <div style="font-weight: 700; font-size:0.9rem;">${escapeHtml(lead.store_name || lead.domain)}</div>
-          <a href="${escapeHtml(lead.url)}" target="_blank" style="font-size: 0.75rem; color: var(--cyan); text-decoration: none;">${escapeHtml(lead.domain)} ↗</a>
+        <td style="text-align: center;">
+          <span class="row-number">#${idx + 1}</span>
+          <span class="id-badge">ID: ${lead.id}</span>
+        </td>
+        <td style="cursor: pointer;" onclick="openLeadModal(${lead.id})" title="Click to view full lead profile & CRM notes">
+          <div style="font-weight: 800; font-size:0.92rem; color:#fff; transition: color 0.15s ease;" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='#fff'">${escapeHtml(lead.store_name || lead.domain)}</div>
+          <a href="${escapeHtml(lead.url)}" target="_blank" onclick="event.stopPropagation();" style="font-size: 0.75rem; color: var(--cyan); text-decoration: none;">${escapeHtml(lead.domain)} ↗</a>
           <div style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${escapeHtml(lead.platform)} • ${escapeHtml(lead.country)}</div>
         </td>
         <td>${scoreDisplay}</td>
@@ -376,15 +388,12 @@ function renderLeadsTable() {
           </div>
         </td>
         <td>
-          <div style="font-size: 0.78rem; max-width: 220px; color: var(--text-main); font-weight:600; line-height:1.3;" title="${escapeHtml(lead.primary_opportunity || '')}">
-            ${escapeHtml(lead.primary_opportunity || 'Scale $10k->$30k/mo in 45 days via Google Ads')}
-          </div>
-          <span style="font-size:0.68rem; color: var(--cyan); display:block; margin-top:3px;">🎯 45-Day 0.5-2x ROAS Hook</span>
+          ${statusBadge}
+          ${notesIndicator}
         </td>
-        <td>${statusBadge}</td>
         <td>
           <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
-            <button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem;" onclick="openReviewModal(${lead.id})">🔍 Pitch Suite</button>
+            <button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; font-weight:700;" onclick="openLeadModal(${lead.id})">🔍 Review & CRM</button>
             ${hasEmail && lead.review_status !== 'sent' ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; color:var(--emerald); border-color:var(--emerald);" onclick="quickApprove(${lead.id})">✓</button>` : ''}
             <button class="btn-secondary" style="padding: 0.35rem 0.5rem; font-size:0.75rem; color:var(--rose); border-color:rgba(244,63,94,0.3);" onclick="deleteLeadAction(${lead.id})" title="Delete lead">🗑️</button>
           </div>
@@ -394,34 +403,104 @@ function renderLeadsTable() {
   }).join('');
 }
 
-// Multi-Channel Modal Controller
-function openReviewModal(leadId) {
-  const lead = state.leads.find(l => l.id === leadId);
-  if (!lead) return;
+// Open Dedicated Lead CRM & Pitch Studio Modal
+function openLeadModal(leadId) {
+  const leadIndex = state.leads.findIndex(l => l.id === leadId);
+  if (leadIndex === -1) return;
+  const lead = state.leads[leadIndex];
 
   state.selectedLead = JSON.parse(JSON.stringify(lead));
   state.activeVariantIndex = lead.selected_pitch_index || 0;
 
   // Header & Badges
+  document.getElementById('modal-lead-number').innerText = `#${leadIndex + 1} (ID: ${lead.id})`;
   document.getElementById('modal-store-name').innerText = lead.store_name || lead.domain;
   document.getElementById('modal-domain').innerText = lead.domain;
+  document.getElementById('modal-domain-link').href = lead.url || `https://${lead.domain}`;
+  document.getElementById('modal-meta-info').innerText = `${lead.platform} • ${lead.country}`;
   document.getElementById('modal-opportunity').innerText = lead.primary_opportunity || 'Scale Shopify store from $10k to $30k/mo in 45 days (0.5–2x ROAS boost)';
-  document.getElementById('modal-founder').innerText = lead.founder_name || 'Founder / Owner';
-  document.getElementById('modal-recipient').innerText = lead.email || 'No email (Use LinkedIn/IG)';
-  document.getElementById('modal-tier-badge').innerText = `${lead.lead_tier || 'Silver'} Tier (${lead.est_monthly_revenue || '$10k-$50k'})`;
+  document.getElementById('modal-tier-badge').innerText = `${lead.lead_tier || 'Silver'} Tier`;
   document.getElementById('modal-score-badge').innerText = `Score: ${lead.lead_score || 50}/100`;
+
+  // CRM Response & Contact Form
+  document.getElementById('crm-founder-name').value = lead.founder_name || '';
+  document.getElementById('crm-email').value = lead.email || '';
+  document.getElementById('crm-phone').value = lead.phone || '';
+  document.getElementById('crm-deal-value').value = lead.deal_value || lead.est_monthly_revenue || '$10k-$50k';
+  document.getElementById('crm-review-status').value = lead.review_status || 'pending';
+  document.getElementById('crm-notes').value = lead.notes || '';
 
   // Render Multi-Channel Copies
   renderModalVariants();
   populateSocialChannels();
   switchModalChannel('email');
 
-  elements.reviewModal.classList.add('open');
+  elements.leadCrmModal.classList.add('open');
 }
 
-function closeReviewModal() {
-  elements.reviewModal.classList.remove('open');
+function closeLeadModal() {
+  elements.leadCrmModal.classList.remove('open');
   state.selectedLead = null;
+}
+
+function setQuickStatus(status) {
+  const select = document.getElementById('crm-review-status');
+  if (select) select.value = status;
+}
+
+async function saveLeadCRMInfo() {
+  if (!state.selectedLead) return;
+  const leadId = state.selectedLead.id;
+
+  const founderName = document.getElementById('crm-founder-name').value.trim();
+  const email = document.getElementById('crm-email').value.trim();
+  const phone = document.getElementById('crm-phone').value.trim();
+  const dealValue = document.getElementById('crm-deal-value').value.trim();
+  const reviewStatus = document.getElementById('crm-review-status').value;
+  const notes = document.getElementById('crm-notes').value.trim();
+
+  const btn = document.getElementById('btn-save-crm');
+  btn.disabled = true;
+  btn.innerText = 'Saving...';
+
+  try {
+    const res = await fetch(`/api/leads/${leadId}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        founder_name: founderName,
+        email: email || null,
+        phone: phone || null,
+        deal_value: dealValue,
+        review_status: reviewStatus,
+        notes: notes
+      })
+    });
+
+    const data = await res.json();
+    if (res.ok) {
+      showToast('Client details & CRM response saved successfully! 💾', 'success');
+      // Update local state
+      const target = state.leads.find(l => l.id === leadId);
+      if (target) {
+        target.founder_name = founderName;
+        target.email = email;
+        target.phone = phone;
+        target.deal_value = dealValue;
+        target.review_status = reviewStatus;
+        target.notes = notes;
+      }
+      fetchStats();
+      renderLeadsTable();
+    } else {
+      showToast('Failed to save CRM info: ' + data.detail, 'error');
+    }
+  } catch (e) {
+    showToast('Save error: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerText = '💾 Save Client Info & CRM Notes';
+  }
 }
 
 function switchModalChannel(channel) {
@@ -538,7 +617,7 @@ async function approveModalLead() {
       })
     });
     showToast(`Approved ${state.selectedLead.store_name} for batch outreach queue!`, 'success');
-    closeReviewModal();
+    closeLeadModal();
     fetchStats();
     triggerSearchFilter();
   } catch (e) {
@@ -618,7 +697,7 @@ async function sendModalLeadNow() {
       showToast(`Email successfully delivered to ${state.selectedLead.store_name}! 🚀`, 'success');
       if (btn) btn.innerHTML = `<span>✅ Email Sent!</span>`;
       setTimeout(() => {
-        closeReviewModal();
+        closeLeadModal();
         fetchStats();
         triggerSearchFilter();
       }, 1000);
@@ -720,4 +799,3 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
-
