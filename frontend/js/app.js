@@ -9,6 +9,7 @@ let state = {
   filterTechGap: 'all',
   filterSort: 'lead_score',
   leads: [],
+  newlyDiscoveredDomains: new Set(),
   stats: {},
   targetCount: 10,
   selectedLead: null,
@@ -17,6 +18,7 @@ let state = {
   ws: null,
   searchDebounceTimer: null
 };
+
 
 
 // DOM Elements
@@ -91,6 +93,9 @@ function initWebSocket() {
       if (msg.type === 'campaign_update') {
         handleCampaignUpdate(msg.data);
       } else if (msg.type === 'lead_discovered') {
+        if (msg.data && msg.data.domain) {
+          state.newlyDiscoveredDomains.add(msg.data.domain.toLowerCase());
+        }
         fetchStats();
         fetchLeads();
       } else if (msg.type === 'sending_progress') {
@@ -103,6 +108,7 @@ function initWebSocket() {
         fetchLeads();
       }
     };
+
     
     state.ws.onclose = () => {
       setTimeout(initWebSocket, 3000);
@@ -318,12 +324,16 @@ async function startCampaign() {
     return;
   }
 
+  state.newlyDiscoveredDomains.clear();
+  const defaultPitchAngle = parseInt(document.getElementById('default-pitch-select')?.value || '0', 10);
+
   const payload = {
     niche: niche,
     platform: elements.platformSelect.value,
     country: elements.countrySelect.value,
     target_count: state.targetCount,
-    auto_approve: state.autoApprove
+    auto_approve: state.autoApprove,
+    default_pitch_angle: defaultPitchAngle
   };
 
   elements.btnStartCampaign.disabled = true;
@@ -347,7 +357,7 @@ async function startCampaign() {
 }
 
 
-// Render Table with Numbering & Separate Lead View
+// Render Table with Numbering, Session Divider & Separate Lead View
 function renderLeadsTable() {
   const leads = state.leads || [];
 
@@ -362,7 +372,60 @@ function renderLeadsTable() {
     return;
   }
 
-  elements.leadsTableBody.innerHTML = leads.map((lead, idx) => {
+  // Partition into newly discovered in this session vs previous database leads
+  const hasNewSession = state.newlyDiscoveredDomains && state.newlyDiscoveredDomains.size > 0;
+  let orderedLeads = [];
+  let newCount = 0;
+
+  if (hasNewSession) {
+    const newLeads = [];
+    const olderLeads = [];
+    leads.forEach(l => {
+      const d = (l.domain || '').toLowerCase();
+      if (state.newlyDiscoveredDomains.has(d)) {
+        newLeads.push(l);
+      } else {
+        olderLeads.push(l);
+      }
+    });
+    newCount = newLeads.length;
+    orderedLeads = [...newLeads, ...olderLeads];
+  } else {
+    orderedLeads = leads;
+  }
+
+  let htmlRows = [];
+  let shownNewDivider = false;
+  let shownOlderDivider = false;
+
+  orderedLeads.forEach((lead, idx) => {
+    const isNew = hasNewSession && state.newlyDiscoveredDomains.has((lead.domain || '').toLowerCase());
+    
+    // Render the glowing "YOUR NEW LEADS START HERE" divider banner
+    if (isNew && !shownNewDivider) {
+      shownNewDivider = true;
+      htmlRows.push(`
+        <tr class="new-leads-divider-row">
+          <td colspan="7">
+            <div class="new-leads-divider-content">
+              <span>⚡</span>
+              <span>YOUR NEW LEADS FROM THIS RUN START HERE</span>
+              <span class="badge-new-pulse">✨ ${newCount} NEW DISCOVERED</span>
+            </div>
+          </td>
+        </tr>
+      `);
+    } else if (!isNew && hasNewSession && newCount > 0 && !shownOlderDivider) {
+      shownOlderDivider = true;
+      htmlRows.push(`
+        <tr style="background: rgba(255, 255, 255, 0.02); text-align: center;">
+          <td colspan="7" style="padding: 0.5rem; font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.5px;">
+            📁 Previously Discovered Leads in Database (${orderedLeads.length - newCount})
+          </td>
+        </tr>
+      `);
+    }
+
     const hasEmail = !!lead.email;
     const score = lead.lead_score || 50;
     const tier = lead.lead_tier || 'Silver';
@@ -421,14 +484,19 @@ function renderLeadsTable() {
       ? `<div style="font-size:0.68rem; color:var(--cyan); margin-top:3px;" title="${escapeHtml(lead.notes)}">📝 Notes saved</div>`
       : '';
 
-    return `
-      <tr>
+    const newPulseTag = isNew ? `<span class="badge-new-pulse" style="margin-left: 6px;">✨ NEW</span>` : '';
+
+    htmlRows.push(`
+      <tr style="${isNew ? 'background: rgba(6, 182, 212, 0.05);' : ''}">
         <td style="text-align: center;">
           <span class="row-number">#${idx + 1}</span>
           <span class="id-badge">ID: ${lead.id}</span>
         </td>
         <td style="cursor: pointer;" onclick="openLeadModal(${lead.id})" title="Click to view full lead profile & CRM notes">
-          <div style="font-weight: 800; font-size:0.92rem; color:#fff; transition: color 0.15s ease;" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='#fff'">${escapeHtml(lead.store_name || lead.domain)}</div>
+          <div style="font-weight: 800; font-size:0.92rem; color:#fff; display: flex; align-items: center; transition: color 0.15s ease;" onmouseover="this.style.color='var(--cyan)'" onmouseout="this.style.color='#fff'">
+            ${escapeHtml(lead.store_name || lead.domain)}
+            ${newPulseTag}
+          </div>
           <a href="${escapeHtml(lead.url)}" target="_blank" onclick="event.stopPropagation();" style="font-size: 0.75rem; color: var(--cyan); text-decoration: none;">${escapeHtml(lead.domain)} ↗</a>
           <div style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${escapeHtml(lead.platform)} • ${escapeHtml(lead.country)}</div>
         </td>
@@ -456,11 +524,13 @@ function renderLeadsTable() {
             <button class="btn-secondary" style="padding: 0.35rem 0.5rem; font-size:0.75rem; color:var(--rose); border-color:rgba(244,63,94,0.3);" onclick="deleteLeadAction(${lead.id})" title="Delete lead">🗑️</button>
           </div>
         </td>
-
       </tr>
-    `;
-  }).join('');
+    `);
+  });
+
+  elements.leadsTableBody.innerHTML = htmlRows.join('');
 }
+
 
 // Open Dedicated Lead CRM & Pitch Studio Modal
 function openLeadModal(leadId) {

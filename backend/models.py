@@ -67,7 +67,9 @@ class CampaignRequest(BaseModel):
     country: str = Field("UK", description="UK, US, EU, AU, CA, PK")
     target_count: int = Field(10, description="10, 50, 100, 200")
     auto_approve: bool = Field(False, description="Automatically approve verified email leads into the outreach queue")
+    default_pitch_angle: int = Field(0, description="0: Flagship 45-Day Scale, 1: Case Study, 2: Tracking Leak, 3: CRO, 4: Competitor Search")
     custom_keywords: Optional[str] = None
+
 
 
 class CampaignStatus(BaseModel):

@@ -205,10 +205,11 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
                     "primary_opportunity": audit_res.get("primary_opportunity", ""),
                     "pitch_variants": [],
                     "multi_channel_pitches": {},
-                    "selected_pitch_index": 0,
+                    "selected_pitch_index": req.default_pitch_angle,
                     "review_status": "approved" if is_auto else "pending",
                     "tags": [f"tier-{audit_res.get('lead_tier', 'Silver').lower()}"]
                 }
+
 
                 # Generate Gemini Pitches (both email variants and multi-channel suite)
                 pitches, multi_channel = generate_pitches_with_gemini(lead_dict)
@@ -417,15 +418,22 @@ async def run_batch_sending(lead_ids: List[int], delay_sec: int):
             subject = chosen.get("subject", "E-commerce Growth Strategy")
             body = chosen.get("body", "")
         else:
-            subject = f"scaling {lead['store_name']} from $10k to $30k/mo in 45 days (Google Ads)?"
-            body = f"Hi {lead.get('founder_name') or 'there'},\n\nI wanted to share a quick Google Ads scaling idea for {lead['store_name']}.\n\nBest,\nTalha Yousaf"
+            from backend.modules.pitch_generator import get_regional_currency
+            cur = get_regional_currency(lead.get("country", "UK"))
+            store_n = lead.get("store_name") or lead.get("domain") or "your store"
+            founder_n = lead.get("founder_name") or "there"
+            niche_n = lead.get("niche") or "e-commerce"
+            country_n = lead.get("country") or "UK"
+            subject = f"quick question about {store_n}'s Google search capture"
+            body = f"Hi {founder_n},\n\nI came across {store_n} while researching high-potential {niche_n} brands in {country_n}—really impressed with your product lineup.\n\nI noticed you’re currently relying heavily on cold social traffic and missing high-intent Google Search & Shopping capture for key {niche_n} buyer queries.\n\nWe specialize in scaling established Shopify stores doing ~{cur['short_from']}/month to {cur['short_to']}/month within 45 days by capturing ready-to-buy search traffic through Google Shopping & PMax—with a guaranteed 0.5x to 2x ROAS increase.\n\nIf we don't hit the target ROAS within 45 days, we work completely free.\n\nWould you be open to a quick 2-minute video breakdown of how your top 3 competitors in {niche_n} are capturing your search sales?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Shopify Growth Specialist"
 
         await manager.broadcast({
             "type": "sending_progress",
-            "message": f"[{idx+1}/{total}] Sending email to {lead['store_name']} ({lead['email']})...",
+            "message": f"[{idx+1}/{total}] Dispatching outreach to {lead['store_name']} ({lead['email']})...",
             "current": idx + 1,
             "total": total
         })
+
 
         res = await send_single_email_async(lead["email"], subject, body)
         if res["success"]:
