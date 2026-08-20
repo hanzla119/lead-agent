@@ -2,12 +2,19 @@
 let state = {
   privacyMode: false,
   activeFilter: 'all',
+  searchQuery: '',
+  filterValueTier: 'all',
+  filterChannel: 'all',
+  filterTechGap: 'all',
+  filterSort: 'lead_score',
   leads: [],
   stats: {},
   targetCount: 10,
   selectedLead: null,
   activeVariantIndex: 0,
-  ws: null
+  activeModalChannel: 'email',
+  ws: null,
+  searchDebounceTimer: null
 };
 
 // DOM Elements
@@ -24,10 +31,16 @@ const elements = {
   leadsTableBody: document.getElementById('leads-table-body'),
   statTotalLeads: document.getElementById('stat-total-leads'),
   statDeliverableEmails: document.getElementById('stat-deliverable-emails'),
-  statPixelLeaks: document.getElementById('stat-pixel-leaks'),
-  statApprovedQueue: document.getElementById('stat-approved-queue'),
+  statGoogleGaps: document.getElementById('stat-google-gaps'),
+  statHotLeads: document.getElementById('stat-hot-leads'),
   statSentEmails: document.getElementById('stat-sent-emails'),
   privacyToggleBtn: document.getElementById('privacy-toggle-btn'),
+  searchQueryInput: document.getElementById('search-query-input'),
+  searchClearBtn: document.getElementById('search-clear-btn'),
+  filterValueTier: document.getElementById('filter-value-tier'),
+  filterChannel: document.getElementById('filter-channel'),
+  filterTechGap: document.getElementById('filter-tech-gap'),
+  filterSort: document.getElementById('filter-sort'),
   reviewModal: document.getElementById('review-modal'),
   testEmailModal: document.getElementById('test-email-modal')
 };
@@ -158,16 +171,40 @@ function setupEventListeners() {
       document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
       state.activeFilter = tab.getAttribute('data-filter');
-      renderLeadsTable();
+      triggerSearchFilter();
     });
   });
+
+  // Instant Search Input with debounce
+  if (elements.searchQueryInput) {
+    elements.searchQueryInput.addEventListener('input', (e) => {
+      const val = e.target.value;
+      state.searchQuery = val;
+      if (elements.searchClearBtn) {
+        elements.searchClearBtn.style.display = val ? 'block' : 'none';
+      }
+      clearTimeout(state.searchDebounceTimer);
+      state.searchDebounceTimer = setTimeout(() => {
+        triggerSearchFilter();
+      }, 200);
+    });
+  }
+}
+
+function clearSearch() {
+  if (elements.searchQueryInput) {
+    elements.searchQueryInput.value = '';
+    state.searchQuery = '';
+    elements.searchClearBtn.style.display = 'none';
+    triggerSearchFilter();
+  }
 }
 
 function togglePrivacyMode() {
   state.privacyMode = !state.privacyMode;
   elements.privacyToggleBtn.classList.toggle('active', state.privacyMode);
   elements.privacyToggleBtn.innerHTML = state.privacyMode ? '🔒 Privacy Mode: ON' : '👁️ Privacy Mode: OFF';
-  fetchLeads();
+  triggerSearchFilter();
 }
 
 // API Calls
@@ -176,31 +213,53 @@ async function fetchStats() {
     const res = await fetch('/api/stats');
     const data = await res.json();
     state.stats = data;
-    elements.statTotalLeads.innerText = data.total_leads || 0;
-    elements.statDeliverableEmails.innerText = data.deliverable_emails || 0;
-    elements.statPixelLeaks.innerText = data.pixel_leaks || 0;
-    elements.statApprovedQueue.innerText = data.approved_queue || 0;
-    elements.statSentEmails.innerText = data.sent_emails || 0;
+    if (elements.statTotalLeads) elements.statTotalLeads.innerText = data.total_leads || 0;
+    if (elements.statDeliverableEmails) elements.statDeliverableEmails.innerText = data.deliverable_emails || 0;
+    if (elements.statGoogleGaps) elements.statGoogleGaps.innerText = data.google_ads_gaps || 0;
+    if (elements.statHotLeads) elements.statHotLeads.innerText = data.hot_leads || 0;
+    if (elements.statSentEmails) elements.statSentEmails.innerText = data.sent_emails || 0;
   } catch (e) {
     console.error('Failed to fetch stats:', e);
   }
 }
 
 async function fetchLeads() {
+  triggerSearchFilter();
+}
+
+async function triggerSearchFilter() {
+  const query = state.searchQuery.trim();
+  const valueTier = elements.filterValueTier ? elements.filterValueTier.value : 'all';
+  const channel = elements.filterChannel ? elements.filterChannel.value : 'all';
+  const techGap = elements.filterTechGap ? elements.filterTechGap.value : 'all';
+  const sortBy = elements.filterSort ? elements.filterSort.value : 'lead_score';
+  const status = state.activeFilter;
+
+  // Build query params
+  const params = new URLSearchParams();
+  if (query) params.append('q', query);
+  if (valueTier !== 'all') params.append('value_tier', valueTier);
+  if (channel !== 'all') params.append('channel', channel);
+  if (status !== 'all') params.append('status', status);
+  if (techGap === 'google_ads_gaps') params.append('has_google_ads', 'false');
+  if (techGap === 'pixel_leaks') params.append('has_meta_pixel', 'false');
+  params.append('sort_by', sortBy);
+  params.append('privacy_mode', state.privacyMode);
+
   try {
-    const res = await fetch(`/api/leads?privacy_mode=${state.privacyMode}`);
+    const res = await fetch(`/api/leads/search?${params.toString()}`);
     const data = await res.json();
     state.leads = data;
     renderLeadsTable();
   } catch (e) {
-    console.error('Failed to fetch leads:', e);
+    console.error('Failed to search leads:', e);
   }
 }
 
 async function startCampaign() {
   const niche = elements.nicheInput.value.trim();
   if (!niche) {
-    showToast('Please enter a niche keyword (e.g. Shoes, Streetwear, Cosmetics)', 'error');
+    showToast('Please enter a niche keyword (e.g. Shoes, Streetwear, Jewelry, Cosmetics)', 'error');
     return;
   }
 
@@ -223,7 +282,7 @@ async function startCampaign() {
       body: JSON.stringify(payload)
     });
     const data = await res.json();
-    showToast('Campaign started! Discovering stores...', 'success');
+    showToast('Campaign started! Discovering stores & analyzing tracking gaps...', 'success');
   } catch (e) {
     showToast('Failed to start campaign: ' + e.message, 'error');
     elements.btnStartCampaign.disabled = false;
@@ -233,70 +292,100 @@ async function startCampaign() {
 
 // Render Table
 function renderLeadsTable() {
-  let filtered = [...state.leads];
+  const leads = state.leads || [];
 
-  if (state.activeFilter === 'ready_for_review') {
-    filtered = filtered.filter(l => l.email && l.review_status === 'pending');
-  } else if (state.activeFilter === 'pixel_leaks') {
-    filtered = filtered.filter(l => !l.has_meta_pixel);
-  } else if (state.activeFilter === 'approved') {
-    filtered = filtered.filter(l => l.review_status === 'approved');
-  } else if (state.activeFilter === 'sent') {
-    filtered = filtered.filter(l => l.review_status === 'sent');
-  }
-
-  if (filtered.length === 0) {
+  if (leads.length === 0) {
     elements.leadsTableBody.innerHTML = `
       <tr>
         <td colspan="7" style="text-align:center; padding: 2.5rem; color: var(--text-muted);">
-          No leads found in this view. Click <strong>"Start Autonomous Lead Agent"</strong> to harvest leads.
+          No leads matching your search/filters. Click <strong>"Start Autonomous Lead Agent"</strong> to harvest high-converting leads.
         </td>
       </tr>
     `;
     return;
   }
 
-  elements.leadsTableBody.innerHTML = filtered.map(lead => {
+  elements.leadsTableBody.innerHTML = leads.map(lead => {
     const hasEmail = !!lead.email;
-    const emailDisplay = hasEmail 
-      ? `<span class="badge badge-emerald">📧 ${escapeHtml(lead.email)}</span>`
-      : `<span class="badge badge-rose">No public email</span>`;
+    const score = lead.lead_score || 50;
+    const tier = lead.lead_tier || 'Silver';
+    const estRev = lead.est_monthly_revenue || '$10k-$50k';
+
+    // Score Badge
+    const scoreClass = score >= 70 ? 'score-hot' : 'score-warm';
+    const scoreDisplay = `
+      <div style="display:flex; flex-direction:column; gap:0.25rem;">
+        <div><span class="score-badge ${scoreClass}">🔥 ${score}/100</span></div>
+        <span class="badge ${tier === 'Gold' || tier === 'Platinum' ? 'tier-tag-gold' : 'badge-indigo'}" style="font-size:0.7rem;">
+          ${escapeHtml(tier)} (${escapeHtml(estRev)})
+        </span>
+      </div>
+    `;
+
+    // Decision-Maker & Social Profiles
+    const founderDisplay = lead.founder_name 
+      ? `<div style="font-weight:700; color:#fff; font-size:0.85rem;">👤 ${escapeHtml(lead.founder_name)}</div>`
+      : `<div style="color:var(--text-dim); font-size:0.75rem;">👤 Founder / Owner</div>`;
+
+    const emailBadge = hasEmail 
+      ? `<div style="font-size:0.75rem; color:var(--emerald); margin-top:2px;">📧 ${escapeHtml(lead.email)}</div>`
+      : `<div style="font-size:0.75rem; color:var(--rose); margin-top:2px;">No email</div>`;
+
+    const socialLinks = [];
+    if (lead.linkedin) socialLinks.push(`<a href="${escapeHtml(lead.linkedin)}" target="_blank" class="channel-icon-link" title="LinkedIn Profile">💼</a>`);
+    if (lead.instagram) socialLinks.push(`<a href="${escapeHtml(lead.instagram)}" target="_blank" class="channel-icon-link" title="Instagram Profile">📸</a>`);
+    if (lead.facebook) socialLinks.push(`<a href="${escapeHtml(lead.facebook)}" target="_blank" class="channel-icon-link" title="Facebook Page">📘</a>`);
+    if (lead.reddit_username) socialLinks.push(`<a href="https://reddit.com/user/${escapeHtml(lead.reddit_username)}" target="_blank" class="channel-icon-link" title="Reddit User">💬</a>`);
+
+    const socialDisplay = socialLinks.length > 0
+      ? `<div style="display:flex; gap:0.3rem; margin-top:0.35rem;">${socialLinks.join('')}</div>`
+      : '';
+
+    // Tech Audit Badges
+    const googleAdsBadge = lead.has_google_ads
+      ? `<span class="badge badge-emerald" style="font-size:0.68rem;">Google Ads Active</span>`
+      : `<span class="badge badge-rose" style="font-size:0.68rem;" title="Missing Google Shopping & Search ad capture">❌ No Google Ads</span>`;
 
     const pixelBadge = lead.has_meta_pixel
-      ? `<span class="badge badge-emerald">Meta Pixel Active</span>`
-      : `<span class="badge badge-rose">❌ Missing Meta Pixel</span>`;
+      ? `<span class="badge badge-emerald" style="font-size:0.68rem;">Meta Pixel</span>`
+      : `<span class="badge badge-rose" style="font-size:0.68rem;">❌ Pixel Leak</span>`;
 
-    let statusBadge = `<span class="badge badge-indigo">Pending Review</span>`;
+    // Status Badge
+    let statusBadge = `<span class="badge badge-indigo">Pending</span>`;
     if (lead.review_status === 'approved') statusBadge = `<span class="badge badge-emerald">✓ Approved</span>`;
     if (lead.review_status === 'sent') statusBadge = `<span class="badge badge-emerald" style="background: rgba(16,185,129,0.25);">✉️ Sent</span>`;
     if (lead.review_status === 'failed') statusBadge = `<span class="badge badge-rose">Failed</span>`;
-    if (lead.review_status === 'rejected') statusBadge = `<span class="badge badge-rose">Skipped</span>`;
-
-    const pitchCount = (lead.pitch_variants && lead.pitch_variants.length) || 0;
 
     return `
       <tr>
         <td>
-          <div style="font-weight: 700;">${escapeHtml(lead.store_name || lead.domain)}</div>
+          <div style="font-weight: 700; font-size:0.9rem;">${escapeHtml(lead.store_name || lead.domain)}</div>
           <a href="${escapeHtml(lead.url)}" target="_blank" style="font-size: 0.75rem; color: var(--cyan); text-decoration: none;">${escapeHtml(lead.domain)} ↗</a>
+          <div style="font-size:0.7rem; color:var(--text-dim); margin-top:2px;">${escapeHtml(lead.platform)} • ${escapeHtml(lead.country)}</div>
+        </td>
+        <td>${scoreDisplay}</td>
+        <td>
+          ${founderDisplay}
+          ${emailBadge}
+          ${socialDisplay}
         </td>
         <td>
-          <span class="badge badge-indigo">${escapeHtml(lead.platform)}</span>
-          <span style="font-size: 0.75rem; color: var(--text-dim); display:block; margin-top:2px;">${escapeHtml(lead.country)}</span>
-        </td>
-        <td>${emailDisplay}</td>
-        <td>${pixelBadge}</td>
-        <td>
-          <div style="font-size: 0.8rem; max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="${escapeHtml(lead.primary_opportunity || '')}">
-            ${escapeHtml(lead.primary_opportunity || 'N/A')}
+          <div style="display:flex; flex-direction:column; gap:0.25rem;">
+            ${googleAdsBadge}
+            ${pixelBadge}
           </div>
-          ${pitchCount > 0 ? `<span style="font-size:0.7rem; color: var(--primary);">✨ ${pitchCount} AI Pitches Ready</span>` : ''}
+        </td>
+        <td>
+          <div style="font-size: 0.78rem; max-width: 220px; color: var(--text-main); font-weight:600; line-height:1.3;" title="${escapeHtml(lead.primary_opportunity || '')}">
+            ${escapeHtml(lead.primary_opportunity || 'Scale $10k->$30k/mo in 45 days via Google Ads')}
+          </div>
+          <span style="font-size:0.68rem; color: var(--cyan); display:block; margin-top:3px;">🎯 45-Day 0.5-2x ROAS Hook</span>
         </td>
         <td>${statusBadge}</td>
         <td>
-          <div style="display:flex; gap:0.4rem;">
-            ${hasEmail ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem;" onclick="openReviewModal(${lead.id})">🔍 Review Pitch</button>` : ''}
-            ${hasEmail && lead.review_status !== 'sent' ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; color:var(--emerald); border-color:var(--emerald);" onclick="quickApprove(${lead.id})">✓ Approve</button>` : ''}
+          <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+            <button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem;" onclick="openReviewModal(${lead.id})">🔍 Pitch Suite</button>
+            ${hasEmail && lead.review_status !== 'sent' ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; color:var(--emerald); border-color:var(--emerald);" onclick="quickApprove(${lead.id})">✓</button>` : ''}
             <button class="btn-secondary" style="padding: 0.35rem 0.5rem; font-size:0.75rem; color:var(--rose); border-color:rgba(244,63,94,0.3);" onclick="deleteLeadAction(${lead.id})" title="Delete lead">🗑️</button>
           </div>
         </td>
@@ -305,7 +394,7 @@ function renderLeadsTable() {
   }).join('');
 }
 
-// Modal Review & Multi-Pitch Selector
+// Multi-Channel Modal Controller
 function openReviewModal(leadId) {
   const lead = state.leads.find(l => l.id === leadId);
   if (!lead) return;
@@ -313,12 +402,20 @@ function openReviewModal(leadId) {
   state.selectedLead = JSON.parse(JSON.stringify(lead));
   state.activeVariantIndex = lead.selected_pitch_index || 0;
 
+  // Header & Badges
   document.getElementById('modal-store-name').innerText = lead.store_name || lead.domain;
   document.getElementById('modal-domain').innerText = lead.domain;
-  document.getElementById('modal-opportunity').innerText = lead.primary_opportunity || 'CRO & ROAS Scaling';
-  document.getElementById('modal-recipient').innerText = lead.email || 'No email found';
+  document.getElementById('modal-opportunity').innerText = lead.primary_opportunity || 'Scale Shopify store from $10k to $30k/mo in 45 days (0.5–2x ROAS boost)';
+  document.getElementById('modal-founder').innerText = lead.founder_name || 'Founder / Owner';
+  document.getElementById('modal-recipient').innerText = lead.email || 'No email (Use LinkedIn/IG)';
+  document.getElementById('modal-tier-badge').innerText = `${lead.lead_tier || 'Silver'} Tier (${lead.est_monthly_revenue || '$10k-$50k'})`;
+  document.getElementById('modal-score-badge').innerText = `Score: ${lead.lead_score || 50}/100`;
 
+  // Render Multi-Channel Copies
   renderModalVariants();
+  populateSocialChannels();
+  switchModalChannel('email');
+
   elements.reviewModal.classList.add('open');
 }
 
@@ -327,20 +424,80 @@ function closeReviewModal() {
   state.selectedLead = null;
 }
 
+function switchModalChannel(channel) {
+  state.activeModalChannel = channel;
+  
+  // Update Tab buttons
+  document.querySelectorAll('.channel-tab').forEach(tab => {
+    tab.classList.toggle('active', tab.getAttribute('data-channel') === channel);
+  });
+
+  // Toggle Content Blocks
+  ['email', 'linkedin', 'instagram', 'reddit', 'loom'].forEach(ch => {
+    const el = document.getElementById(`channel-content-${ch}`);
+    if (el) el.style.display = ch === channel ? 'block' : 'none';
+  });
+}
+
+function populateSocialChannels() {
+  const lead = state.selectedLead;
+  const multi = lead.multi_channel_pitches || {};
+  const founder = lead.founder_name || 'there';
+  const store = lead.store_name || lead.domain;
+  const niche = lead.niche || 'e-commerce';
+  const country = lead.country || 'UK';
+
+  // LinkedIn
+  const liNote = (multi.linkedin && multi.linkedin.connection_note) || 
+    `Hey ${founder}, loved ${store}'s ${niche} collection! We help Shopify brands at ~$10k/mo scale to $30k/mo in 45 days via Google Ads (0.5-2x ROAS boost guaranteed). Would love to connect and share a 2-min breakdown!`;
+  const liInmail = (multi.linkedin && multi.linkedin.inmail) || 
+    `Hey ${founder}, thanks for connecting! Put together a 2-min breakdown showing how ${store} can capture high-intent Google Shopping traffic in ${country} with a guaranteed ROAS lift. Would it be okay to drop the link here?`;
+
+  document.getElementById('modal-linkedin-note').value = liNote;
+  document.getElementById('modal-linkedin-inmail').value = liInmail;
+
+  // Instagram
+  const igDm = (multi.instagram && multi.instagram.dm_script) || 
+    `Hey team! Loved your ${niche} collection 🙌 Quick question: are you guys currently capturing high-intent search buyers on Google Shopping? We guarantee scaling Shopify stores from $10k to $30k/mo within 45 days (0.5x-2x ROAS boost). Would you be open to a 2-min breakdown showing how?`;
+  document.getElementById('modal-instagram-dm').value = igDm;
+
+  // Reddit
+  const redditDm = (multi.reddit && multi.reddit.dm_pitch) || 
+    `Hey! Saw your post regarding scaling your Shopify store and managing ad performance. One thing that consistently helps our e-com clients scale from $10k/mo to $30k/mo in 45 days is capturing search intent via Google Shopping/PMax with a 0.5-2x ROAS boost. Happy to share our 3-step roadmap if helpful—no pitch, just actionable steps.`;
+  document.getElementById('modal-reddit-dm').value = redditDm;
+
+  // Loom Video Script
+  const loomScript = (multi.loom_script && multi.loom_script.video_outline) || 
+    `1. (0-5s) Showcase ${store}'s top product & compliment aesthetic.\n2. (5-15s) Show Google Search results where competitors in ${niche} are bidding on their keywords.\n3. (15-25s) Present the 45-day roadmap: Google Shopping feed optimization + PMax scale to go from $10k to $30k/mo with 0.5-2x ROAS guarantee.\n4. (25-30s) Call to action: 'Let me know if you'd like me to send the full keyword map.'`;
+  document.getElementById('modal-loom-script').value = loomScript;
+}
+
+function copyChannelText(elementId) {
+  const el = document.getElementById(elementId);
+  if (!el) return;
+  
+  el.select();
+  navigator.clipboard.writeText(el.value).then(() => {
+    showToast('Copied to clipboard! 📋 Paste directly into chat/outreach', 'success');
+  }).catch(() => {
+    showToast('Copy failed, please select and copy manually', 'error');
+  });
+}
+
 function renderModalVariants() {
   const variants = state.selectedLead.pitch_variants || [];
   const container = document.getElementById('modal-variant-pills');
 
   if (variants.length === 0) {
-    container.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem;">Standard pitch ready</div>';
-    document.getElementById('modal-subject-input').value = `Growth idea for ${state.selectedLead.store_name}`;
-    document.getElementById('modal-body-input').value = `Hi ${state.selectedLead.store_name} team,\n\nI was looking at your store and noticed an opportunity to scale your ROAS.\n\nBest,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist`;
+    container.innerHTML = '<div style="color:var(--text-muted); font-size:0.85rem;">Standard 45-Day Google Ads scaling pitch ready</div>';
+    document.getElementById('modal-subject-input').value = `scaling ${state.selectedLead.store_name} from $10k to $30k/mo in 45 days (Google Ads)?`;
+    document.getElementById('modal-body-input').value = `Hi ${state.selectedLead.founder_name || state.selectedLead.store_name},\n\nWe specialize in scaling Shopify brands from ~$10k/month to $30k/month within 45 days through high-intent Google Shopping & Search Ads (guaranteed 0.5x–2x ROAS increase, or we work free).\n\nMind if I send over a quick 2-minute video breakdown of how your top competitors are capturing your search sales?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Shopify Growth Specialist`;
     return;
   }
 
   container.innerHTML = variants.map((v, idx) => `
     <div class="pitch-variant-pill ${idx === state.activeVariantIndex ? 'active' : ''}" onclick="selectVariant(${idx})">
-      Variant ${idx + 1}: ${escapeHtml(v.angle)}
+      ${idx === 0 ? '🎯 Flagship: ' : `Angle ${idx + 1}: `}${escapeHtml(v.angle)}
     </div>
   `).join('');
 
@@ -380,10 +537,10 @@ async function approveModalLead() {
         pitch_variants: state.selectedLead.pitch_variants
       })
     });
-    showToast(`Approved ${state.selectedLead.store_name} for outreach queue!`, 'success');
+    showToast(`Approved ${state.selectedLead.store_name} for batch outreach queue!`, 'success');
     closeReviewModal();
     fetchStats();
-    fetchLeads();
+    triggerSearchFilter();
   } catch (e) {
     showToast('Failed to approve lead: ' + e.message, 'error');
   }
@@ -398,7 +555,7 @@ async function quickApprove(leadId) {
     });
     showToast('Lead marked as Approved ✓', 'success');
     fetchStats();
-    fetchLeads();
+    triggerSearchFilter();
   } catch (e) {
     showToast('Failed to approve: ' + e.message, 'error');
   }
@@ -411,7 +568,7 @@ async function deleteLeadAction(leadId) {
     if (res.ok) {
       showToast('Lead deleted successfully', 'success');
       fetchStats();
-      fetchLeads();
+      triggerSearchFilter();
     } else {
       showToast('Failed to delete lead', 'error');
     }
@@ -427,7 +584,7 @@ async function pruneDatabaseAction() {
     const data = await res.json();
     showToast(data.message || `Pruned ${data.pruned_count} invalid records`, 'success');
     fetchStats();
-    fetchLeads();
+    triggerSearchFilter();
   } catch (e) {
     showToast('Prune error: ' + e.message, 'error');
   }
@@ -463,20 +620,20 @@ async function sendModalLeadNow() {
       setTimeout(() => {
         closeReviewModal();
         fetchStats();
-        fetchLeads();
+        triggerSearchFilter();
       }, 1000);
     } else {
       showToast('Error sending email: ' + data.error, 'error');
       if (btn) {
         btn.disabled = false;
-        btn.innerHTML = `<span>✉️ Send Right Now (1-Click)</span>`;
+        btn.innerHTML = `<span>✉️ Send Email Right Now (1-Click)</span>`;
       }
     }
   } catch (e) {
     showToast('Send failed: ' + e.message, 'error');
     if (btn) {
       btn.disabled = false;
-      btn.innerHTML = `<span>✉️ Send Right Now (1-Click)</span>`;
+      btn.innerHTML = `<span>✉️ Send Email Right Now (1-Click)</span>`;
     }
   }
 }
@@ -563,3 +720,4 @@ function escapeHtml(str) {
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#039;');
 }
+

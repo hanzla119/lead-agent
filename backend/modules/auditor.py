@@ -165,7 +165,10 @@ def audit_website(url: str, timeout: int = 8) -> Tuple[Dict[str, Any], str]:
         gads_patterns = [
             r"gtag\(['\"]config['\"],\s*['\"]AW-",
             r"google_conversion_id",
-            r"googleadservices\.com\/pagead\/conversion"
+            r"googleadservices\.com\/pagead\/conversion",
+            r"googleads\.g\.doubleclick\.net",
+            r"google-shopping",
+            r"google_tag_params"
         ]
         result["has_google_ads"] = any(re.search(p, html, re.IGNORECASE) for p in gads_patterns)
 
@@ -187,29 +190,65 @@ def audit_website(url: str, timeout: int = 8) -> Tuple[Dict[str, Any], str]:
         ]
         result["has_reviews"] = any(re.search(p, html, re.IGNORECASE) for p in review_patterns)
 
-        # 10. Formulate Primary Opportunity Hook
-        gaps = []
+        # 10. Lead Score (0-100) & Estimated Revenue Tier
+        score = 40  # Base for active live store
+        if result["platform"] in ["Shopify", "WooCommerce"]:
+            score += 15
+        if has_products or has_cart:
+            score += 10
+        if result["has_reviews"]:
+            score += 10
+            
+        # Value opportunities add to outreach score
+        if not result["has_google_ads"]:
+            score += 15  # Prime candidate for $10k->$30k 45-day Google Ads scale
         if not result["has_meta_pixel"]:
-            gaps.append("Missing Meta/Facebook Pixel tracking (losing 30-40% retargeting buyers & iOS 14+ conversion tracking)")
-            result["primary_opportunity"] = "Missing Meta Pixel - losing 30-40% retargeting revenue & CAPI signals"
+            score += 10  # Immediate pixel leak fix
+            
+        result["lead_score"] = min(100, max(20, score))
+        
+        if result["lead_score"] >= 80:
+            result["lead_tier"] = "Platinum"
+            result["est_monthly_revenue"] = "$50k-$250k"
+        elif result["lead_score"] >= 65:
+            result["lead_tier"] = "Gold"
+            result["est_monthly_revenue"] = "$10k-$50k"
+        elif result["lead_score"] >= 45:
+            result["lead_tier"] = "Silver"
+            result["est_monthly_revenue"] = "$10k-$50k"
+        else:
+            result["lead_tier"] = "Bronze"
+            result["est_monthly_revenue"] = "<$10k"
+
+        # 11. Formulate Primary Opportunity Hook (Prioritizing Google Ads 45-day Scale Guarantee)
+        gaps = []
+        if not result["has_google_ads"]:
+            gaps.append("Missing Google Ads & Shopping capture (leaking high-intent search buyers to competitors)")
+            result["primary_opportunity"] = "Missing Google Shopping/Search Ads - Prime candidate for $10k->$30k/mo in 45 days (0.5-2x ROAS boost guaranteed)"
+        elif not result["has_meta_pixel"]:
+            gaps.append("Missing Meta/Facebook Pixel tracking (losing 30-40% retargeting buyers & CAPI attribution)")
+            result["primary_opportunity"] = "Missing Meta Pixel Leak - Losing retargeting buyers; scale to $30k/mo via Google & Meta Ads"
         elif not result["has_tiktok_pixel"]:
             gaps.append("Missing TikTok Pixel (untapped high-converting Gen-Z impulse buyer demographic)")
-            result["primary_opportunity"] = "Missing TikTok Ads tracking - untapped mobile impulse scale opportunity"
+            result["primary_opportunity"] = "Missing TikTok Ads tracking - untapped mobile scale opportunity alongside Google Ads"
         elif not result["has_ga4"]:
             gaps.append("Missing standard GA4 / GTM event tracking for purchase attribution")
-            result["primary_opportunity"] = "Incomplete GA4 tracking & purchase attribution gaps"
+            result["primary_opportunity"] = "Incomplete GA4 tracking & purchase attribution gaps - fix & scale to $30k/mo"
         elif not result["has_klaviyo"]:
             gaps.append("Missing Klaviyo abandoned cart automated flows and post-purchase winback sequences")
             result["primary_opportunity"] = "Uncaptured cart abandonment revenue (missing automated Klaviyo flows)"
         else:
-            gaps.append("Full tracking detected; primary opportunity is scaling Performance Max/ROAS, ad creative testing, and CRO")
-            result["primary_opportunity"] = "Ad creative scaling & checkout conversion rate optimization (CRO)"
+            gaps.append("Full tracking detected; primary opportunity is scaling Google Performance Max & ROAS with guaranteed 0.5-2x lift")
+            result["primary_opportunity"] = "Scale Shopify from $10k to $30k/mo in 45 days via Google Shopping & PMax (0.5-2x ROAS lift guaranteed)"
 
         result["audit_notes"] = "; ".join(gaps)
         return result, html
 
     except requests.exceptions.RequestException as e:
         result["is_live"] = False
+        result["lead_score"] = 20
+        result["lead_tier"] = "Bronze"
+        result["est_monthly_revenue"] = "<$10k"
         result["rejection_reason"] = f"Failed to connect: {str(e)[:40]}"
         result["audit_notes"] = f"Failed to connect: {str(e)[:60]}"
         return result, ""

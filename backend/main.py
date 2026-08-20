@@ -19,6 +19,9 @@ from backend.models import (
     EmailSendRequest,
     BatchSendRequest,
     TestEmailRequest,
+    LeadSearchRequest,
+    TagUpdateRequest,
+    BulkActionRequest,
     Lead
 )
 from backend.database import (
@@ -26,7 +29,9 @@ from backend.database import (
     save_lead,
     get_all_leads,
     get_lead_by_id,
+    search_leads,
     update_lead_status,
+    update_lead_tags,
     delete_lead,
     prune_invalid_leads,
     log_email_send,
@@ -41,7 +46,7 @@ from backend.modules.mailer import send_single_email_async, send_test_email_sync
 # Initialize Database
 init_db()
 
-app = FastAPI(title="Lead Generation & Outreach Agent", version="1.0.0")
+app = FastAPI(title="Apollo-Style Lead Discovery & Outreach Agent", version="2.0.0")
 
 # Enable CORS for cross-origin or local network access
 app.add_middleware(
@@ -114,7 +119,6 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
         ACTIVE_CAMPAIGN["progress_percentage"] = 15
         await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
 
-        # Ask discovery for a 1.5x candidate buffer so we achieve the exact target count of valid stores
         candidate_target = max(req.target_count * 2, 20) if req.target_count > 10 else 15
         candidates = discover_leads(
             niche=req.niche,
@@ -174,6 +178,9 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
                 "niche": req.niche,
                 "platform": audit_res.get("platform") or req.platform,
                 "country": req.country,
+                "est_monthly_revenue": audit_res.get("est_monthly_revenue", "$10k-$50k"),
+                "lead_score": audit_res.get("lead_score", 50),
+                "lead_tier": audit_res.get("lead_tier", "Silver"),
                 "email": enrich_res.get("email"),
                 "email_status": enrich_res.get("email_status", "not_found"),
                 "phone": enrich_res.get("phone"),
@@ -181,27 +188,32 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
                 "linkedin": enrich_res.get("linkedin"),
                 "facebook": enrich_res.get("facebook"),
                 "tiktok": enrich_res.get("tiktok"),
+                "reddit_username": None,
                 "founder_name": enrich_res.get("founder_name"),
+                "founder_title": "Founder & Owner",
+                "has_google_ads": audit_res.get("has_google_ads", False),
                 "has_meta_pixel": audit_res.get("has_meta_pixel", False),
                 "has_ga4": audit_res.get("has_ga4", False),
                 "has_tiktok_pixel": audit_res.get("has_tiktok_pixel", False),
                 "audit_notes": audit_res.get("audit_notes", ""),
                 "primary_opportunity": audit_res.get("primary_opportunity", ""),
                 "pitch_variants": [],
+                "multi_channel_pitches": {},
                 "selected_pitch_index": 0,
-                "review_status": "pending"
+                "review_status": "pending",
+                "tags": [f"tier-{audit_res.get('lead_tier', 'Silver').lower()}"]
             }
+
+            # Generate Gemini Pitches (both email variants and multi-channel suite)
+            pitches, multi_channel = generate_pitches_with_gemini(lead_dict)
+            lead_dict["pitch_variants"] = pitches
+            lead_dict["multi_channel_pitches"] = multi_channel
 
             if enrich_res.get("email"):
                 ACTIVE_CAMPAIGN["leads_contactable"] += 1
-                ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}). Generating AI pitches...")
-                await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
-                
-                # Generate AI Pitches
-                pitches = generate_pitches_with_gemini(lead_dict)
-                lead_dict["pitch_variants"] = pitches
+                ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}). Score: {lead_dict['lead_score']}/100.")
             else:
-                ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}), no direct email.")
+                ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}). Score: {lead_dict['lead_score']}/100.")
 
             # Save to Database
             save_lead(lead_dict)
@@ -241,6 +253,39 @@ async def fetch_leads(
     leads = get_all_leads(privacy_mode=privacy_mode, filter_status=filter_status)
     return leads
 
+@app.get("/api/leads/search")
+async def search_leads_endpoint(
+    q: Optional[str] = Query(None),
+    min_score: Optional[int] = Query(None),
+    max_score: Optional[int] = Query(None),
+    value_tier: Optional[str] = Query(None),
+    has_google_ads: Optional[bool] = Query(None),
+    has_meta_pixel: Optional[bool] = Query(None),
+    channel: Optional[str] = Query(None),
+    niche: Optional[str] = Query(None),
+    country: Optional[str] = Query(None),
+    status: Optional[str] = Query("all"),
+    sort_by: str = Query("lead_score"),
+    sort_order: str = Query("DESC"),
+    privacy_mode: bool = Query(False)
+):
+    results = search_leads(
+        query_text=q,
+        min_score=min_score,
+        max_score=max_score,
+        value_tier=value_tier,
+        has_google_ads=has_google_ads,
+        has_meta_pixel=has_meta_pixel,
+        channel=channel,
+        niche=niche,
+        country=country,
+        status=status,
+        sort_by=sort_by,
+        sort_order=sort_order,
+        privacy_mode=privacy_mode
+    )
+    return results
+
 @app.get("/api/leads/{lead_id}")
 async def fetch_lead_detail(lead_id: int):
     lead = get_lead_by_id(lead_id)
@@ -272,6 +317,11 @@ async def review_lead(
     update_lead_status(lead_id, status, selected_pitch=selected_pitch, custom_variants=custom_variants)
     return {"message": f"Lead {lead_id} updated to {status}"}
 
+@app.post("/api/leads/{lead_id}/tags")
+async def update_tags_endpoint(lead_id: int, req: TagUpdateRequest):
+    update_lead_tags(lead_id, req.tags)
+    return {"message": "Tags updated", "tags": req.tags}
+
 @app.post("/api/leads/batch-review")
 async def batch_review_leads(payload: Dict[str, Any]):
     lead_ids = payload.get("lead_ids", [])
@@ -296,8 +346,8 @@ async def send_single_lead_email(req: EmailSendRequest):
             subject = chosen.get("subject", "E-commerce Growth Opportunity")
             body = chosen.get("body", "")
         else:
-            subject = f"Growth opportunity for {lead['store_name']}"
-            body = f"Hi {lead['store_name']},\n\nWould you be open to discussing scaling your online sales?\n\nBest regards,\nTalha Yousaf"
+            subject = f"scaling {lead['store_name']} from $10k to $30k/mo in 45 days (Google Ads)?"
+            body = f"Hi {lead.get('founder_name') or lead['store_name']},\n\nWould you be open to discussing scaling your online sales via Google Shopping with a guaranteed ROAS lift?\n\nBest regards,\nTalha Yousaf"
 
     res = await send_single_email_async(lead["email"], subject, body)
     if res["success"]:
@@ -326,8 +376,8 @@ async def run_batch_sending(lead_ids: List[int], delay_sec: int):
             subject = chosen.get("subject", "E-commerce Growth Strategy")
             body = chosen.get("body", "")
         else:
-            subject = f"Marketing idea for {lead['store_name']}"
-            body = f"Hi,\n\nI wanted to share a quick idea for {lead['store_name']}.\n\nBest,\nTalha Yousaf"
+            subject = f"scaling {lead['store_name']} from $10k to $30k/mo in 45 days (Google Ads)?"
+            body = f"Hi {lead.get('founder_name') or 'there'},\n\nI wanted to share a quick Google Ads scaling idea for {lead['store_name']}.\n\nBest,\nTalha Yousaf"
 
         await manager.broadcast({
             "type": "sending_progress",
@@ -378,8 +428,10 @@ async def export_csv(privacy_mode: bool = Query(False)):
     
     headers = [
         "ID", "Store Name", "Domain", "URL", "Niche", "Platform", "Country",
-        "Email", "Email Status", "Phone", "Instagram", "LinkedIn", "TikTok",
-        "Meta Pixel", "GA4", "TikTok Pixel", "Primary Opportunity", "Review Status", "Sent Date"
+        "Lead Score", "Lead Tier", "Est Revenue", "Founder Name",
+        "Email", "Email Status", "Phone", "Instagram", "LinkedIn", "TikTok", "Reddit",
+        "Google Ads", "Meta Pixel", "GA4", "TikTok Pixel",
+        "Primary Opportunity", "Review Status", "Tags", "Sent Date"
     ]
     writer.writerow(headers)
     
@@ -392,17 +444,24 @@ async def export_csv(privacy_mode: bool = Query(False)):
             l.get("niche"),
             l.get("platform"),
             l.get("country"),
+            l.get("lead_score", 50),
+            l.get("lead_tier", "Silver"),
+            l.get("est_monthly_revenue", "$10k-$50k"),
+            l.get("founder_name") or "",
             l.get("email"),
             l.get("email_status"),
             l.get("phone"),
             l.get("instagram"),
             l.get("linkedin"),
             l.get("tiktok"),
+            l.get("reddit_username") or "",
+            "Yes" if l.get("has_google_ads") else "No",
             "Yes" if l.get("has_meta_pixel") else "No",
             "Yes" if l.get("has_ga4") else "No",
             "Yes" if l.get("has_tiktok_pixel") else "No",
             l.get("primary_opportunity"),
             l.get("review_status"),
+            ", ".join(l.get("tags", [])),
             l.get("send_timestamp") or ""
         ])
         
@@ -410,7 +469,7 @@ async def export_csv(privacy_mode: bool = Query(False)):
     return StreamingResponse(
         iter([output.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=leads_export.csv"}
+        headers={"Content-Disposition": "attachment; filename=apollo_leads_export.csv"}
     )
 
 # Static files for frontend

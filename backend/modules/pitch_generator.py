@@ -1,15 +1,18 @@
 import json
-from typing import List, Dict, Any
+from typing import List, Dict, Any, Tuple
 from google import genai
 from google.genai import types
 from backend.config import GEMINI_API_KEY, GEMINI_MODEL
 
-def generate_pitches_with_gemini(lead_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+def generate_pitches_with_gemini(lead_data: Dict[str, Any]) -> Tuple[List[Dict[str, Any]], Dict[str, Any]]:
     """
-    Calls Google Gemini AI to craft 5 irresistible, hyper-personalized pitch variants
-    tailored to the store's audit findings and Talha Yousaf's verified e-commerce achievements (£696k+ revenue, 4.89% CRO, Sameday Trainers UK, Shine IN).
+    Calls Google Gemini AI to craft:
+    1. 5 distinct cold email pitch variants (featuring the Flagship 45-Day $10k->$30k Google Ads scale offer).
+    2. Multi-channel copies for LinkedIn, Instagram DM, Reddit DM, and a 30-sec Loom video script.
     """
     store_name = lead_data.get("store_name", "your store")
+    domain = lead_data.get("domain", "")
+    founder_name = lead_data.get("founder_name") or "there"
     niche = lead_data.get("niche", "e-commerce")
     platform = lead_data.get("platform", "Shopify")
     country = lead_data.get("country", "UK")
@@ -17,61 +20,55 @@ def generate_pitches_with_gemini(lead_data: Dict[str, Any]) -> List[Dict[str, An
     has_meta = lead_data.get("has_meta_pixel", False)
     has_tiktok = lead_data.get("has_tiktok_pixel", False)
     has_ga4 = lead_data.get("has_ga4", False)
+    has_google_ads = lead_data.get("has_google_ads", False)
+    est_rev = lead_data.get("est_monthly_revenue", "$10k-$50k")
 
     prompt = f"""
-You are an elite direct-response e-commerce copywriter writing cold outreach emails for Talha Yousaf.
-Talha Yousaf is a seasoned Digital Marketer, Shopify Specialist, and Paid Media Strategist with verified track records:
-- Scaled UK & international e-commerce stores (including footwear/apparel brands like Sameday Trainers UK and fashion lines) past £696,000+ in gross revenue.
-- Achieved exceptional e-commerce conversion rates of up to 4.89% through CRO (Conversion Rate Optimization) and structured ad testing on Meta, Google Shopping/PMax, and TikTok Ads.
-- Specializes in fixing tracking leaks (Meta CAPI, TikTok pixel, GA4 attribution) and creating high-converting creative ad hooks.
+You are an elite direct-response e-commerce growth strategist and copywriter writing outreach pitches for Talha Yousaf.
+Talha Yousaf is a seasoned Shopify Specialist and Google & Meta Ads media buyer with verified achievements:
+- Scaled Shopify brands (including Sameday Trainers UK and fashion/footwear lines) past £696,000+ in gross revenue.
+- Core Flagship Offer: **Scaling Shopify stores from ~$10k/month to $30k/month within 45 days (0.5x–2x ROAS increase Guaranteed) through Google Shopping & Search Ads capture**.
+- Achieved store conversion rates of up to 4.89% through CRO and fixed critical tracking leaks (Meta CAPI, Google Ads AW- tags, GA4 attribution).
 
 Lead Store Details:
 - Store Name: {store_name}
+- Domain: {domain}
+- Founder/Contact: {founder_name}
 - Niche/Category: {niche}
 - Platform: {platform}
-- Target Country: {country}
-- Meta Pixel Present: {"Yes" if has_meta else "NO (Missing - Critical retargeting & iOS 14+ revenue leak!)"}
-- TikTok Pixel Present: {"Yes" if has_tiktok else "NO (Missing - Untapped Gen-Z/impulse demographic!)"}
-- GA4 / GTM Tracking: {"Yes" if has_ga4 else "NO (Attribution gap)"}
-- Identified Audit Hook: {opportunity}
+- Target Market: {country}
+- Estimated Revenue: {est_rev}
+- Google Ads Active: {"Yes" if has_google_ads else "NO (Missing - Prime candidate for $10k->$30k scale via Google Shopping!)"}
+- Meta Pixel Active: {"Yes" if has_meta else "NO (Missing - Losing retargeting revenue)"}
+- GA4 Tracking: {"Yes" if has_ga4 else "NO (Attribution gap)"}
+- Primary Opportunity Hook: {opportunity}
 
-Generate exactly 5 distinct, psychological, high-converting cold email pitch variants in JSON format.
+Output a single JSON object with two main keys:
+1. "variants": Array of 5 email objects (id: 1-5, angle, subject, body).
+   - Variant 1 (FLAGSHIP): "Google Ads Scaling Guarantee ($10k->$30k/mo in 45 Days)"
+     * Focus on capturing high-intent Google Search/Shopping buyers vs burning money on cold ads, with 0.5-2x ROAS guarantee in 45 days.
+   - Variant 2: "£696k Case Study & Social Proof Hook"
+     * Focus on how Talha scaled a {niche} store past £696k revenue with structured creative testing.
+   - Variant 3: "Missing Tracking & Retargeting Leak Hook"
+     * Focus on {opportunity} and stopping revenue leaks.
+   - Variant 4: "4.89% Conversion Rate (CRO) Quick-Win"
+     * Focus on mobile checkout speed and boosting store conversion rate.
+   - Variant 5: "Executive Paid Traffic Teardown"
+     * Peer-to-peer executive offer for {founder_name}.
 
-Variant 1: "The £696k Case Study & Social Proof Hook"
-- Subject line: Engaging & professional, under 45 chars (e.g., "idea for {store_name}'s ad performance", "how we scaled a {niche} brand past £696k")
-- Body: Shares how Talha helped scale a {niche} brand past £696,000+ in gross revenue using structured creative testing and Performance Max, offers to share a 3-point growth brief tailored for {store_name}.
-- CTA: "Would you be open to seeing the 3-point growth breakdown tailored specifically for {store_name}?"
+2. "multi_channel": Object containing:
+   - "linkedin": {{"connection_note": "Under 280 chars tailored connection request", "inmail": "Follow up message"}}
+   - "instagram": {{"dm_script": "Casual, 3-sentence hook mentioning {store_name}'s {niche} collection and the 45-day Google Ads scale guarantee"}}
+   - "reddit": {{"dm_pitch": "Helpful, community-friendly DM addressing scaling pain points and sharing the 3-step Google Ads roadmap"}}
+   - "loom_script": {{"video_outline": "Step-by-step 30-second Loom script outline breaking down competitors capturing their Google search keywords"}}
 
-Variant 2: "The Tracking & Retargeting Revenue Optimization Hook"
-- Subject line: Curiosity-driven & value-focused (e.g., "growth opportunity for {store_name}", "quick note regarding {store_name}'s checkout")
-- Body: Compliments the {niche} collection, points out the tracking/attribution opportunity ({opportunity}), explains how fixing this increased ROAS within 3 weeks for a similar brand by accurately attributing high-value buyers.
-- CTA: "Would it make sense to share a brief breakdown of how we fixed this with your growth team?"
+Tone: Authentic, peer-to-peer, executive, direct, no buzzwords. Short 1-2 sentence paragraphs.
+Signature:
+Best regards,
+Talha Yousaf
+Digital Marketer & Shopify Growth Specialist
 
-Variant 3: "High-Converting Creative Hooks & Ad Angles"
-- Subject line: Punchy & creative (e.g., "3 ad concepts for {store_name}", "creative idea for {store_name}")
-- Body: Focuses on high-converting TikTok & Meta ad creatives/hooks designed specifically for {niche} buyers to lower customer acquisition cost (CAC).
-- CTA: "Mind if I email the 3 concepts over for your team to check out?"
-
-Variant 4: "The 4.89% Conversion Rate (CRO) Quick-Win"
-- Subject line: Specific & value-led (e.g., "2 CRO tweaks for {store_name}", "{store_name} - mobile checkout note")
-- Body: Focuses on Shopify mobile speed, sticky Add-to-Cart layouts, and reducing checkout drop-offs (referencing optimizing stores up to 4.89% conversion rate).
-- CTA: "Would you like me to send the 2-point CRO checklist over?"
-
-Variant 5: "Executive Growth Strategy & Ad Scaling"
-- Subject line: Executive & tailored (e.g., "scaling {store_name} in {country}", "quick question for {store_name} team")
-- Body: Introduces Talha's performance-driven growth framework for ambitious {niche} brands to scale monthly revenue while cutting ad spend waste.
-- CTA: "Would you be open to exploring 2 quick ideas on how {store_name} can acquire customers at a lower cost this quarter?"
-
-STRICT GUIDELINES:
-- DO NOT use the phrase "Would you be open to a quick 2-minute video showing where this leak is happening and how to fix it?". Use the varied, natural, executive CTAs listed above.
-- Tone: Casual, authentic, peer-to-peer executive tone (no cringe buzzwords like "synergy", "game-changer", "skyrocket").
-- Short paragraphs (1-2 sentences per paragraph for effortless mobile reading).
-- Signature:
-  Best regards,
-  Talha Yousaf
-  Digital Marketer & E-Commerce Specialist
-
-Return ONLY a valid JSON array of 5 objects with keys: "id" (1 to 5), "angle", "subject", "body".
+Return ONLY valid JSON.
 """
 
     if GEMINI_API_KEY:
@@ -94,18 +91,21 @@ Return ONLY a valid JSON array of 5 objects with keys: "id" (1 to 5), "angle", "
             if text.endswith("```"):
                 text = text[:-3]
                 
-            variants = json.loads(text.strip())
-            if isinstance(variants, list) and len(variants) >= 3:
-                return variants
+            data = json.loads(text.strip())
+            if isinstance(data, dict) and "variants" in data:
+                return data.get("variants", []), data.get("multi_channel", {})
+            elif isinstance(data, list):
+                return data, get_fallback_multi_channel(lead_data)
                 
         except Exception as e:
-            print(f"Gemini API generation error (using enhanced 5-variant fallback): {e}")
+            print(f"Gemini API generation note (using guaranteed fallback suite): {e}")
 
-    # 5 Master-class fallback templates
-    return get_fallback_pitches(lead_data)
+    # Fallback suite
+    return get_fallback_pitches(lead_data), get_fallback_multi_channel(lead_data)
 
 def get_fallback_pitches(lead_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     store_name = lead_data.get("store_name", "your brand")
+    founder_name = lead_data.get("founder_name") or "there"
     niche = lead_data.get("niche", "e-commerce")
     country = lead_data.get("country", "UK")
     opportunity = lead_data.get("primary_opportunity", "Scaling Meta & Google Ads ROAS")
@@ -113,32 +113,59 @@ def get_fallback_pitches(lead_data: Dict[str, Any]) -> List[Dict[str, Any]]:
     return [
         {
             "id": 1,
-            "angle": "E-Commerce Growth & Scaling Case Study (£696k)",
-            "subject": f"idea for {store_name}'s ad performance",
-            "body": f"Hi {store_name} Team,\n\nI came across {store_name} while researching leading {niche} brands in the {country} and really loved your product lineup.\n\nI specialize in helping e-commerce & Shopify brands scale their monthly sales through performance marketing (Meta & Google Ads) and conversion rate optimization (CRO).\n\nRecently, we helped an independent brand in your space scale past £696,000 in gross revenue by restructuring their ad creatives and eliminating wasted ad spend.\n\nLooking at {store_name}, I spotted 2 immediate creative angles and catalog ad structures that could help drive lower customer acquisition costs without increasing your current ad budget.\n\nWould you be open to checking out a quick 3-point growth breakdown tailored specifically for {store_name}?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
+            "angle": "Google Ads Scale Guarantee ($10k to $30k/mo in 45 Days)",
+            "subject": f"scaling {store_name} from $10k to $30k/mo in 45 days (Google Ads)?",
+            "body": f"Hi {founder_name},\n\nI came across {store_name} while researching high-potential {niche} brands in {country}—really impressed with your product lineup.\n\nI noticed you’re currently relying heavily on cold social traffic and missing high-intent Google Search & Shopping capture for key {niche} buyer queries.\n\nWe specialize in scaling established Shopify stores doing ~$10k/month to $30k/month within 45 days by capturing ready-to-buy search traffic through Google Shopping & PMax—with a guaranteed 0.5x to 2x ROAS increase.\n\nIf we don't hit the target ROAS within 45 days, we work completely free.\n\nWould you be open to a quick 2-minute video breakdown of how your top 3 competitors in {niche} are capturing your search sales?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Shopify Growth Specialist"
         },
         {
             "id": 2,
-            "angle": "Ad Creative & UGC Angles (Lower CAC)",
-            "subject": f"3 ad concepts for {store_name}",
-            "body": f"Hi team at {store_name},\n\nI’ve been following {store_name}'s growth in the {country} {niche} market and love your brand aesthetic.\n\nWe specialize in developing high-converting short-form ad creatives and UGC hooks on TikTok & Meta that turn casual scrollers into profitable first-time buyers.\n\nI mapped out 3 specific ad concepts and hook angles designed specifically for {store_name}'s customer demographic. Mind if I email the 3 concepts over for your marketing team to review?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Shopify Specialist"
+            "angle": "E-Commerce Growth Case Study (£696k Gross Revenue)",
+            "subject": f"idea for {store_name}'s ad performance",
+            "body": f"Hi {founder_name},\n\nI’ve been following {store_name}'s growth in the {niche} space in {country}.\n\nRecently, we helped an independent brand in your space scale past £696,000 in gross revenue by restructuring their Google Shopping feeds and testing high-intent ad hooks.\n\nLooking at {store_name}, I spotted 2 immediate creative angles and catalog ad structures that could help drive lower customer acquisition costs without increasing your current ad spend.\n\nWould you be open to checking out a quick 3-point growth breakdown tailored specifically for {store_name}?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
         },
         {
             "id": 3,
-            "angle": "4.89% Conversion Rate (CRO) Quick-Win",
-            "subject": f"2 quick CRO tweaks for {store_name}",
-            "body": f"Hi {store_name} Team,\n\nI was reviewing your mobile product pages for {store_name}.\n\nBy optimizing sticky Add-to-Cart layouts and streamlining checkout friction on Shopify, we've helped stores in your space push store conversion rates up to 4.89%.\n\nI put together a quick 2-point checklist specifically for {store_name}. Would you like me to send it over?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Conversion Specialist"
+            "angle": "Ad Tracking & Revenue Leak Optimization",
+            "subject": f"growth opportunity for {store_name}",
+            "body": f"Hi {founder_name},\n\nI was checking out {store_name}'s {niche} collection and noticed an immediate opportunity in your ad tracking infrastructure ({opportunity}).\n\nWhen we resolved this for another Shopify brand in your space, their retargeting ROAS jumped within 3 weeks because Google and Meta were finally able to attribute checkout signals and optimize for high-value repeat buyers.\n\nWould it make sense to share a brief breakdown of how we fixed this with your growth team?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
         },
         {
             "id": 4,
-            "angle": "Retargeting & Ad Tracking Audit",
-            "subject": f"growth opportunity for {store_name}",
-            "body": f"Hi {store_name} Team,\n\nI was checking out {store_name}'s {niche} collection and noticed an immediate opportunity to improve your ad retargeting and attribution tracking.\n\nWhen we resolved this for another brand in your space, their retargeting ROAS jumped within 3 weeks because Meta and Google were finally able to attribute checkout signals and optimize for high-value repeat customers.\n\nWould it make sense to share a brief breakdown of how we fixed this with your growth team?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
+            "angle": "4.89% Conversion Rate (CRO) Quick-Win",
+            "subject": f"2 quick CRO tweaks for {store_name}",
+            "body": f"Hi {founder_name},\n\nI was reviewing your mobile product pages for {store_name}.\n\nBy optimizing sticky Add-to-Cart layouts and streamlining checkout friction on Shopify, we've helped stores in your space push store conversion rates up to 4.89%.\n\nI put together a quick 2-point checklist specifically for {store_name}. Would you like me to send it over?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & Conversion Specialist"
         },
         {
             "id": 5,
-            "angle": "Executive Growth Strategy & Ad Scaling",
+            "angle": "Executive Growth Strategy & Performance Scaling",
             "subject": f"scaling {store_name} in {country}",
-            "body": f"Hi {store_name} Team,\n\nI'm reaching out because I specialize in helping ambitious {niche} brands scale their monthly recurring revenue profitably through paid media and conversion optimization.\n\nWe recently helped a brand in your category scale past £696k+ in gross sales by testing dynamic creative variations and eliminating ad spend waste.\n\nWould you be open to exploring 2 quick ideas on how {store_name} can acquire customers at a lower cost this quarter?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
+            "body": f"Hi {founder_name},\n\nI'm reaching out because I specialize in helping ambitious {niche} brands scale their monthly recurring revenue profitably through Google Ads and conversion optimization.\n\nWe guarantee taking established Shopify brands from $10k/mo to $30k/mo in 45 days with a 0.5x–2x ROAS lift.\n\nWould you be open to exploring 2 quick ideas on how {store_name} can capture search buyers at a lower acquisition cost this quarter?\n\nBest regards,\nTalha Yousaf\nDigital Marketer & E-Commerce Specialist"
         }
     ]
+
+def get_fallback_multi_channel(lead_data: Dict[str, Any]) -> Dict[str, Any]:
+    store_name = lead_data.get("store_name", "your store")
+    founder_name = lead_data.get("founder_name") or "there"
+    niche = lead_data.get("niche", "e-commerce")
+    country = lead_data.get("country", "UK")
+
+    return {
+        "email": {
+            "subject": f"scaling {store_name} from $10k to $30k/mo in 45 days (Google Ads)?",
+            "body": f"Hi {founder_name},\n\nCame across {store_name} while researching top {niche} brands in {country}—loved your collection.\n\nWe specialize in scaling Shopify brands from ~$10k/month to $30k/month within 45 days through high-intent Google Shopping & Search Ads (guaranteed 0.5x–2x ROAS increase, or we work free).\n\nMind if I send over a quick 2-minute video breakdown of how your top competitors are capturing your search sales?"
+        },
+        "linkedin": {
+            "connection_note": f"Hey {founder_name}, loved {store_name}'s {niche} collection! We help Shopify brands at ~$10k/mo scale to $30k/mo in 45 days via Google Shopping (0.5-2x ROAS boost guaranteed). Would love to connect and share a 2-min breakdown!",
+            "inmail": f"Hey {founder_name}, thanks for connecting! Put together a 2-min breakdown showing how {store_name} can capture high-intent Google Shopping traffic in {country} with a guaranteed ROAS lift. Would it be okay to drop the link here?"
+        },
+        "instagram": {
+            "dm_script": f"Hey team! Loved your {niche} collection 🙌 Quick question: are you guys currently capturing high-intent search buyers on Google Shopping? We guarantee scaling Shopify stores from $10k to $30k/mo within 45 days (0.5x-2x ROAS boost). Would you be open to a 2-min breakdown showing how?"
+        },
+        "reddit": {
+            "dm_pitch": f"Hey! Saw your post regarding scaling your Shopify store and managing ad performance. One thing that consistently helps our e-com clients scale from $10k/mo to $30k/mo in 45 days is capturing search intent via Google Shopping/PMax with a 0.5-2x ROAS boost. Happy to share our 3-step roadmap if helpful—no pitch, just actionable steps."
+        },
+        "loom_script": {
+            "video_outline": f"1. (0-5s) Showcase {store_name}'s top product & compliment aesthetic.\n2. (5-15s) Show Google Search results where competitors in {niche} are bidding on their keywords.\n3. (15-25s) Present the 45-day roadmap: Google Shopping feed optimization + PMax scale to go from $10k to $30k/mo with 0.5-2x ROAS guarantee.\n4. (25-30s) Call to action: 'Let me know if you'd like me to send the full keyword map.'"
+        }
+    }
+

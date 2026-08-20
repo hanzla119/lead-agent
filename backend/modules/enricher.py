@@ -276,6 +276,22 @@ def enrich_store_contacts(store_url: str, initial_html: str = "") -> Dict[str, A
             except Exception:
                 continue
 
+    # 3. Extract Founder / Owner Names from Text (About, Imprint, Team)
+    founder_patterns = [
+        r'(?:founded by|created by|started by|co-founder|founder|owner|ceo|director|co-founded by)\s+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})',
+        r'([A-Z][a-z]+\s+[A-Z][a-z]+)\s*,\s*(?:Founder|Co-Founder|Owner|CEO|Director|Head of)',
+        r'(?:Inhaber|Geschäftsführer)[:\s]+([A-Z][a-z]+(?:\s+[A-Z][a-z]+){1,2})'
+    ]
+    full_text = soup.get_text(separator=' ', strip=True)
+    for fp in founder_patterns:
+        match = re.search(fp, full_text)
+        if match:
+            cand = match.group(1).strip()
+            # Filter out non-names like "Free Shipping", "Privacy Policy", "Shopify Store"
+            if not any(cand.lower().startswith(x) for x in ["free", "privacy", "terms", "return", "contact", "about", "shopify", "united", "london", "customer"]):
+                info["founder_name"] = cand
+                break
+
     # 4. Filter and Prioritize Discovered Emails
     if all_emails:
         def email_priority_score(e: str) -> int:

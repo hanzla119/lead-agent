@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>E-Commerce Lead Generation & Outreach Agent | Talha Yousaf</title>
-  <meta name="description" content="Autonomous zero-cost e-commerce lead discovery, pixel auditor, Gemini multi-pitch generator, and review-to-send outreach platform.">
+  <title>Apollo-Style Lead Intelligence & Multi-Channel Outreach Agent | Talha Yousaf</title>
+  <meta name="description" content="Apollo-style lead discovery, Google Ads tracking auditor, Gemini multi-channel pitch generator, and review-to-send outreach platform.">
   <link rel="stylesheet" href="/static/css/styles.css">
   <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🎯</text></svg>">
 </head>
@@ -15,8 +15,8 @@
     <div class="brand">
       <div class="brand-icon">⚡</div>
       <div>
-        <h1 class="brand-title">LeadGen & Outreach Agent</h1>
-        <p class="brand-subtitle">AI Discovery • Pixel Auditor • Gemini Pitch Writer</p>
+        <h1 class="brand-title">Apollo-Style Lead Intelligence & Outreach</h1>
+        <p class="brand-subtitle">Google Ads 45-Day Scale Guarantee • Multi-Channel Copy • LinkedIn • IG • Reddit</p>
       </div>
     </div>
     <div class="nav-actions">
@@ -40,22 +40,22 @@
         <div class="stat-indicator">Live database count</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Verified Emails <span>📧</span></div>
+        <div class="stat-title">Verified Inboxes <span>📧</span></div>
         <div class="stat-value" id="stat-deliverable-emails">0</div>
-        <div class="stat-indicator">Ready for outreach</div>
+        <div class="stat-indicator">Direct decision-makers</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Pixel & Tech Gaps <span>⚠️</span></div>
-        <div class="stat-value" id="stat-pixel-leaks" style="color: var(--amber);">0</div>
-        <div class="stat-indicator">High opportunity hooks</div>
+        <div class="stat-title">Google Ads Gaps <span>📈</span></div>
+        <div class="stat-value" id="stat-google-gaps" style="color: var(--amber);">0</div>
+        <div class="stat-indicator">45-day scale targets ($10k->$30k)</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Approved Queue <span>✓</span></div>
-        <div class="stat-value" id="stat-approved-queue" style="color: var(--cyan);">0</div>
-        <div class="stat-indicator">Ready to fire</div>
+        <div class="stat-title">Hot Leads (Score 70+) <span>🔥</span></div>
+        <div class="stat-value" id="stat-hot-leads" style="color: var(--cyan);">0</div>
+        <div class="stat-indicator">High opportunity scores</div>
       </div>
       <div class="stat-card">
-        <div class="stat-title">Outreach Sent <span>🚀</span></div>
+        <div class="stat-title">Outreach Dispatched <span>🚀</span></div>
         <div class="stat-value" id="stat-sent-emails" style="color: var(--emerald);">0</div>
         <div class="stat-indicator">Rate-limited dispatches</div>
       </div>
@@ -71,16 +71,24 @@
           <span class="badge badge-emerald">Ready</span>
         </div>
 
+        <!-- Flagship Offer Banner -->
+        <div class="offer-banner">
+          <div class="offer-tag">🎯 Flagship Outreach Offer</div>
+          <div class="offer-text">
+            <strong>"Scale Shopify store from $10k to $30k/mo in 45 days (0.5–2x ROAS boost guaranteed) via Google Ads"</strong>
+          </div>
+        </div>
+
         <!-- Niche Input -->
-        <div class="form-group">
+        <div class="form-group" style="margin-top: 1rem;">
           <label class="form-label" for="niche-input">Niche / Store Category</label>
-          <input type="text" id="niche-input" class="form-input" placeholder="e.g. Shoes, Streetwear, Jewelry, Skincare" value="Shoes">
+          <input type="text" id="niche-input" class="form-input" placeholder="e.g. Shoes, Streetwear, Jewelry, Skincare, Watches" value="Shoes">
           <div class="tag-pills">
             <span class="tag-pill" data-tag="Shoes">👟 Shoes</span>
             <span class="tag-pill" data-tag="Streetwear">👕 Streetwear</span>
-            <span class="tag-pill" data-tag="Desi Fashion">👗 Desi Fashion</span>
-            <span class="tag-pill" data-tag="Supplements">💊 Supplements</span>
+            <span class="tag-pill" data-tag="Jewelry">💍 Jewelry</span>
             <span class="tag-pill" data-tag="Cosmetics">💄 Cosmetics</span>
+            <span class="tag-pill" data-tag="Supplements">💊 Supplements</span>
             <span class="tag-pill" data-tag="Luxury Watches">⌚ Watches</span>
           </div>
         </div>
@@ -91,7 +99,7 @@
           <select id="platform-select" class="form-select">
             <option value="Shopify" selected>Shopify (Highest E-Commerce Intent)</option>
             <option value="WooCommerce">WooCommerce (WordPress)</option>
-            <option value="Instagram">Instagram Brands (Bio Links)</option>
+            <option value="Instagram">Instagram DTC Brands (Bio Links)</option>
             <option value="LinkedIn">LinkedIn Decision-Makers (Founders/CEOs)</option>
             <option value="Facebook">Facebook E-Commerce Pages</option>
           </select>
@@ -143,10 +151,50 @@
 
       <!-- Right Column: Interactive Leads Table & Review Queue -->
       <section class="panel-card">
-        <div class="queue-header">
+        
+        <!-- Search & Faceted Filter Bar -->
+        <div class="search-filter-box">
+          <div class="search-input-wrapper">
+            <span class="search-icon">🔍</span>
+            <input type="text" id="search-query-input" class="search-input" placeholder="Search by Store Name, Domain, Founder, Tech, or Keyword...">
+            <button id="search-clear-btn" class="search-clear-btn" style="display: none;" onclick="clearSearch()">&times;</button>
+          </div>
+
+          <div class="advanced-filter-row">
+            <select id="filter-value-tier" class="filter-select" onchange="triggerSearchFilter()">
+              <option value="all">💰 All Revenue Tiers</option>
+              <option value="$10k-$50k">$10k-$50k (Prime Scale Targets)</option>
+              <option value="$50k-$250k">$50k-$250k (Mid-Market)</option>
+              <option value="<$10k">&lt;$10k (Emerging Brands)</option>
+            </select>
+
+            <select id="filter-channel" class="filter-select" onchange="triggerSearchFilter()">
+              <option value="all">🌐 All Channels</option>
+              <option value="email">📧 Has Email</option>
+              <option value="linkedin">💼 Has LinkedIn</option>
+              <option value="instagram">📸 Has Instagram</option>
+              <option value="reddit">💬 Has Reddit</option>
+            </select>
+
+            <select id="filter-tech-gap" class="filter-select" onchange="triggerSearchFilter()">
+              <option value="all">⚡ All Tech Status</option>
+              <option value="google_ads_gaps">📈 Missing Google Ads (45-Day Offer)</option>
+              <option value="pixel_leaks">⚠️ Missing Meta Pixel</option>
+            </select>
+
+            <select id="filter-sort" class="filter-select" onchange="triggerSearchFilter()">
+              <option value="lead_score">🔥 Sort by Lead Score</option>
+              <option value="id">🕒 Sort by Newest</option>
+              <option value="store_name">🔤 Sort by Store Name</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="queue-header" style="margin-top: 1rem;">
           <div class="filter-tabs">
             <div class="filter-tab active" data-filter="all">All Discovered</div>
             <div class="filter-tab" data-filter="ready_for_review">📧 Review Queue</div>
+            <div class="filter-tab" data-filter="google_ads_gaps">📈 Google Ads Gaps</div>
             <div class="filter-tab" data-filter="pixel_leaks">⚠️ Pixel Leaks</div>
             <div class="filter-tab" data-filter="approved">✓ Approved</div>
             <div class="filter-tab" data-filter="sent">🚀 Outreach Sent</div>
@@ -171,10 +219,10 @@
             <thead>
               <tr>
                 <th>Store / Brand</th>
-                <th>Platform</th>
-                <th>Contact Email</th>
-                <th>Pixel Status</th>
-                <th>Audit Opportunity</th>
+                <th>Score & Value</th>
+                <th>Decision-Maker & Channels</th>
+                <th>Tech Audit</th>
+                <th>Scaling Hook</th>
                 <th>Status</th>
                 <th>Actions</th>
               </tr>
@@ -193,38 +241,127 @@
     </div>
   </main>
 
-  <!-- Pitch Review & Editor Modal -->
+  <!-- Multi-Channel Pitch Review & Outreach Modal -->
   <div id="review-modal" class="modal-backdrop">
-    <div class="modal-card">
+    <div class="modal-card" style="max-width: 780px;">
       <div class="modal-header">
         <div>
-          <h3 id="modal-store-name" style="font-size: 1.25rem; font-weight: 800;">Store Name</h3>
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <h3 id="modal-store-name" style="font-size: 1.25rem; font-weight: 800;">Store Name</h3>
+            <span id="modal-tier-badge" class="badge badge-emerald">Gold Tier</span>
+            <span id="modal-score-badge" class="badge badge-indigo">Score 85/100</span>
+          </div>
           <span id="modal-domain" style="color: var(--cyan); font-size: 0.85rem;">domain.com</span>
         </div>
         <button class="modal-close" onclick="closeReviewModal()">&times;</button>
       </div>
 
-      <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: var(--radius-sm); padding: 0.75rem; margin-bottom: 1.25rem;">
-        <div style="font-size: 0.8rem; color: var(--text-muted);">Primary Audit Hook:</div>
-        <div id="modal-opportunity" style="font-weight: 700; color: var(--amber); margin-top: 0.2rem;">Missing Meta Pixel</div>
-        <div style="font-size: 0.8rem; color: var(--text-muted); margin-top: 0.5rem;">Recipient: <strong id="modal-recipient" style="color: var(--emerald);">info@store.com</strong></div>
-      </div>
-
-      <div class="form-group">
-        <label class="form-label">Select Gemini AI Pitch Angle:</label>
-        <div id="modal-variant-pills" class="pitch-variant-pills">
-          <!-- Populated dynamically -->
+      <!-- Lead Summary Header -->
+      <div class="modal-summary-box">
+        <div style="display: flex; justify-content: space-between; flex-wrap: wrap; gap: 0.5rem;">
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Primary Scaling Opportunity:</div>
+            <div id="modal-opportunity" style="font-weight: 700; color: var(--amber); margin-top: 0.2rem; font-size: 0.85rem;">
+              Missing Google Ads & Shopping capture
+            </div>
+          </div>
+          <div>
+            <div style="font-size: 0.75rem; color: var(--text-muted);">Decision-Maker:</div>
+            <div style="font-size: 0.85rem;">
+              <strong id="modal-founder" style="color: #fff;">Founder</strong> • <strong id="modal-recipient" style="color: var(--emerald);">info@store.com</strong>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label" for="modal-subject-input">Email Subject Line (High Open Rate):</label>
-        <input type="text" id="modal-subject-input" class="form-input" value="Quick question about your store">
+      <!-- Channel Tabs Switcher -->
+      <div class="modal-channel-tabs">
+        <div class="channel-tab active" data-channel="email" onclick="switchModalChannel('email')">
+          ✉️ Email Pitch (45-Day Scale)
+        </div>
+        <div class="channel-tab" data-channel="linkedin" onclick="switchModalChannel('linkedin')">
+          💼 LinkedIn Note
+        </div>
+        <div class="channel-tab" data-channel="instagram" onclick="switchModalChannel('instagram')">
+          📸 Instagram DM
+        </div>
+        <div class="channel-tab" data-channel="reddit" onclick="switchModalChannel('reddit')">
+          💬 Reddit DM
+        </div>
+        <div class="channel-tab" data-channel="loom" onclick="switchModalChannel('loom')">
+          🎥 Loom Video Script
+        </div>
       </div>
 
-      <div class="form-group">
-        <label class="form-label" for="modal-body-input">Personalized Email Pitch:</label>
-        <textarea id="modal-body-input" class="form-input" rows="8" style="resize: vertical; line-height: 1.5;"></textarea>
+      <!-- Email Channel Content -->
+      <div id="channel-content-email" class="channel-content">
+        <div class="form-group">
+          <label class="form-label">Select Gemini Pitch Angle:</label>
+          <div id="modal-variant-pills" class="pitch-variant-pills">
+            <!-- Populated dynamically -->
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-subject-input">Email Subject Line:</label>
+          <input type="text" id="modal-subject-input" class="form-input" value="scaling store to $30k/mo in 45 days?">
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="modal-body-input">Personalized Email Pitch:</label>
+          <textarea id="modal-body-input" class="form-input" rows="8" style="resize: vertical; line-height: 1.5;"></textarea>
+        </div>
+      </div>
+
+      <!-- LinkedIn Channel Content -->
+      <div id="channel-content-linkedin" class="channel-content" style="display: none;">
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label">LinkedIn Connection Note (&lt; 300 Chars):</label>
+            <button class="btn-copy" onclick="copyChannelText('modal-linkedin-note')">📋 Copy Note</button>
+          </div>
+          <textarea id="modal-linkedin-note" class="form-input" rows="3" style="resize: vertical;"></textarea>
+        </div>
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label">LinkedIn InMail / Follow-Up Message:</label>
+            <button class="btn-copy" onclick="copyChannelText('modal-linkedin-inmail')">📋 Copy InMail</button>
+          </div>
+          <textarea id="modal-linkedin-inmail" class="form-input" rows="5" style="resize: vertical;"></textarea>
+        </div>
+      </div>
+
+      <!-- Instagram Channel Content -->
+      <div id="channel-content-instagram" class="channel-content" style="display: none;">
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label">Instagram 3-Sentence Direct Message (Mobile-First):</label>
+            <button class="btn-copy" onclick="copyChannelText('modal-instagram-dm')">📋 Copy IG DM</button>
+          </div>
+          <textarea id="modal-instagram-dm" class="form-input" rows="5" style="resize: vertical;"></textarea>
+        </div>
+      </div>
+
+      <!-- Reddit Channel Content -->
+      <div id="channel-content-reddit" class="channel-content" style="display: none;">
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label">Reddit Community DM Pitch (Actionable & Transparent):</label>
+            <button class="btn-copy" onclick="copyChannelText('modal-reddit-dm')">📋 Copy Reddit DM</button>
+          </div>
+          <textarea id="modal-reddit-dm" class="form-input" rows="6" style="resize: vertical;"></textarea>
+        </div>
+      </div>
+
+      <!-- Loom Video Script Channel Content -->
+      <div id="channel-content-loom" class="channel-content" style="display: none;">
+        <div class="form-group">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.35rem;">
+            <label class="form-label">30-Second Loom Audit Video Outline (High-Ticket Closer):</label>
+            <button class="btn-copy" onclick="copyChannelText('modal-loom-script')">📋 Copy Video Script</button>
+          </div>
+          <textarea id="modal-loom-script" class="form-input" rows="8" style="resize: vertical; font-family: monospace; font-size: 0.85rem;"></textarea>
+        </div>
       </div>
 
       <div class="modal-actions">
@@ -232,7 +369,7 @@
           ✓ Approve for Batch Queue
         </button>
         <button id="btn-modal-send" class="btn-primary" onclick="sendModalLeadNow()" style="background: linear-gradient(135deg, var(--cyan), #0284c7);">
-          ✉️ Send Right Now (1-Click)
+          ✉️ Send Email Right Now (1-Click)
         </button>
         <button class="btn-secondary" onclick="closeReviewModal()">
           Close
@@ -275,3 +412,4 @@
   <script src="/static/js/app.js"></script>
 </body>
 </html>
+
