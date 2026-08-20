@@ -216,11 +216,13 @@ def save_lead(lead_data: Dict[str, Any]) -> int:
             has_active_meta_ads=excluded.has_active_meta_ads,
             active_ad_count=excluded.active_ad_count,
             audit_notes=excluded.audit_notes,
-            primary_opportunity=excluded.primary_opportunity,
             pitch_variants=excluded.pitch_variants,
             multi_channel_pitches=COALESCE(excluded.multi_channel_pitches, leads.multi_channel_pitches),
+            selected_pitch_index=excluded.selected_pitch_index,
+            review_status=CASE WHEN leads.review_status = 'sent' THEN 'sent' WHEN excluded.review_status = 'approved' THEN 'approved' ELSE leads.review_status END,
             tags=COALESCE(excluded.tags, leads.tags)
         """, (
+
             lead_data.get("domain"),
             lead_data.get("store_name", ""),
             lead_data.get("url", ""),

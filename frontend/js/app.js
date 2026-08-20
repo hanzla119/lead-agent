@@ -892,14 +892,27 @@ async function sendModalLeadNow() {
 }
 
 async function sendAllApprovedBatch() {
-  // Try to find approved leads with emails from current leads or backend
   try {
+    // 1. Fetch current approved leads with valid emails
     const res = await fetch('/api/leads/search?status=approved');
     const allApproved = await res.json();
-    const validEmails = allApproved.filter(l => l.email && l.review_status !== 'sent');
+    let validEmails = allApproved.filter(l => l.email && l.review_status !== 'sent');
     
+    // 2. If 0 approved leads in queue, auto-approve any pending leads with valid emails right now!
     if (validEmails.length === 0) {
-      showToast('No approved leads waiting in queue. Click "⚡ Approve All Verified" to queue leads first!', 'error');
+      const autoApprRes = await fetch('/api/leads/approve-all', { method: 'POST' });
+      const apprData = await autoApprRes.json();
+      if (apprData.approved_count > 0) {
+        showToast(`Auto-approved ${apprData.approved_count} pending leads for batch dispatch! ⚡`, 'success');
+        const res2 = await fetch('/api/leads/search?status=approved');
+        const allApproved2 = await res2.json();
+        validEmails = allApproved2.filter(l => l.email && l.review_status !== 'sent');
+      }
+    }
+    
+    // 3. If still 0, it means all discovered leads with emails in the database were already sent!
+    if (validEmails.length === 0) {
+      showToast('All discovered leads with emails have already been contacted! 🚀 Launch a new campaign to discover more stores, or click "✉️ Send" on any row to re-contact.', 'success');
       return;
     }
 
@@ -920,6 +933,7 @@ async function sendAllApprovedBatch() {
     showToast('Batch send error: ' + e.message, 'error');
   }
 }
+
 
 
 // Test Email Modal
