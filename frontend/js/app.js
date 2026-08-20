@@ -449,12 +449,14 @@ function renderLeadsTable() {
           ${notesIndicator}
         </td>
         <td>
-          <div style="display:flex; gap:0.35rem; flex-wrap:wrap;">
+          <div style="display:flex; gap:0.3rem; flex-wrap:wrap;">
             <button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; font-weight:700;" onclick="openLeadModal(${lead.id})">🔍 Review & CRM</button>
-            ${hasEmail && lead.review_status !== 'sent' ? `<button class="btn-secondary" style="padding: 0.35rem 0.65rem; font-size:0.75rem; color:var(--emerald); border-color:var(--emerald);" onclick="quickApprove(${lead.id})">✓</button>` : ''}
+            ${hasEmail && lead.review_status !== 'sent' ? `<button class="btn-secondary" style="padding: 0.35rem 0.6rem; font-size:0.75rem; color:var(--emerald); border-color:var(--emerald); font-weight:700;" onclick="sendLeadDirect(${lead.id})" title="Send tailored Google Ads scale pitch right now with 1-click">✉️ Send</button>` : ''}
+            ${hasEmail && lead.review_status === 'pending' ? `<button class="btn-secondary" style="padding: 0.35rem 0.55rem; font-size:0.75rem; color:var(--cyan); border-color:var(--cyan);" onclick="quickApprove(${lead.id})" title="Approve for batch queue">✓</button>` : ''}
             <button class="btn-secondary" style="padding: 0.35rem 0.5rem; font-size:0.75rem; color:var(--rose); border-color:rgba(244,63,94,0.3);" onclick="deleteLeadAction(${lead.id})" title="Delete lead">🗑️</button>
           </div>
         </td>
+
       </tr>
     `;
   }).join('');
@@ -660,9 +662,15 @@ function saveCurrentModalEdits() {
 }
 
 async function approveModalLead() {
+  if (!state.selectedLead) {
+    showToast('No lead selected', 'error');
+    return;
+  }
   saveCurrentModalEdits();
-  if (!state.selectedLead) return;
   const leadId = state.selectedLead.id;
+  const storeName = state.selectedLead.store_name || state.selectedLead.domain || 'Lead';
+  const variants = state.selectedLead.pitch_variants || [];
+  const activeVarIdx = state.activeVariantIndex || 0;
   
   try {
     const res = await fetch(`/api/leads/${leadId}/review`, {
@@ -670,19 +678,19 @@ async function approveModalLead() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         status: 'approved',
-        selected_pitch_index: state.activeVariantIndex,
-        pitch_variants: state.selectedLead.pitch_variants
+        selected_pitch_index: activeVarIdx,
+        pitch_variants: variants
       })
     });
     if (!res.ok) {
       throw new Error(`Server returned status ${res.status}`);
     }
-    showToast(`Approved ${state.selectedLead.store_name} for batch outreach queue! ⚡`, 'success');
+    showToast(`Approved ${storeName} for batch outreach queue! ⚡`, 'success');
     closeLeadModal();
     fetchStats();
     triggerSearchFilter();
   } catch (e) {
-    showToast('Failed to approve lead: ' + e.message, 'error');
+    showToast('Approval notice: ' + e.message, 'error');
   }
 }
 
@@ -704,6 +712,32 @@ async function quickApprove(leadId) {
   }
 }
 
+async function sendLeadDirect(leadId) {
+  const lead = state.leads.find(l => l.id === leadId);
+  const name = lead ? (lead.store_name || lead.domain) : 'store';
+
+  showToast(`Dispatching outreach to ${name}...`, 'success');
+  try {
+    const res = await fetch('/api/outreach/send-single', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        lead_id: leadId,
+        variant_id: lead ? (lead.selected_pitch_index || 0) : 0
+      })
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(`Outreach delivered to ${name}! 🚀`, 'success');
+      fetchStats();
+      triggerSearchFilter();
+    } else {
+      showToast(`Notice: ${data.error}`, 'error');
+    }
+  } catch (e) {
+    showToast('Send failed: ' + e.message, 'error');
+  }
+}
 
 async function deleteLeadAction(leadId) {
   if (!confirm('Are you sure you want to delete this lead?')) return;
@@ -735,8 +769,13 @@ async function pruneDatabaseAction() {
 }
 
 async function sendModalLeadNow() {
+  if (!state.selectedLead) {
+    showToast('No lead selected', 'error');
+    return;
+  }
   saveCurrentModalEdits();
   const leadId = state.selectedLead.id;
+  const storeName = state.selectedLead.store_name || state.selectedLead.domain || 'Lead';
   const subj = document.getElementById('modal-subject-input').value;
   const body = document.getElementById('modal-body-input').value;
   const btn = document.getElementById('btn-modal-send');
@@ -759,7 +798,7 @@ async function sendModalLeadNow() {
     });
     const data = await res.json();
     if (data.success) {
-      showToast(`Email successfully delivered to ${state.selectedLead.store_name}! 🚀`, 'success');
+      showToast(`Email successfully delivered to ${storeName}! 🚀`, 'success');
       if (btn) btn.innerHTML = `<span>✅ Email Sent!</span>`;
       setTimeout(() => {
         closeLeadModal();
@@ -767,7 +806,7 @@ async function sendModalLeadNow() {
         triggerSearchFilter();
       }, 1000);
     } else {
-      showToast('Error sending email: ' + data.error, 'error');
+      showToast('Outreach notice: ' + data.error, 'error');
       if (btn) {
         btn.disabled = false;
         btn.innerHTML = `<span>✉️ Send Email Right Now (1-Click)</span>`;
@@ -783,27 +822,35 @@ async function sendModalLeadNow() {
 }
 
 async function sendAllApprovedBatch() {
-  const approvedLeads = state.leads.filter(l => l.review_status === 'approved' && l.email);
-  if (approvedLeads.length === 0) {
-    showToast('No leads currently marked as Approved. Click "Approve" first.', 'error');
-    return;
-  }
-
+  // Try to find approved leads with emails from current leads or backend
   try {
-    const res = await fetch('/api/outreach/send-batch', {
+    const res = await fetch('/api/leads/search?status=approved');
+    const allApproved = await res.json();
+    const validEmails = allApproved.filter(l => l.email && l.review_status !== 'sent');
+    
+    if (validEmails.length === 0) {
+      showToast('No approved leads waiting in queue. Click "⚡ Approve All Verified" to queue leads first!', 'error');
+      return;
+    }
+
+    const leadIds = validEmails.map(l => l.id);
+    const sendRes = await fetch('/api/outreach/send-batch', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        lead_ids: approvedLeads.map(l => l.id),
-        delay_seconds: 30
+        lead_ids: leadIds,
+        delay_seconds: 5
       })
     });
-    const data = await res.json();
-    showToast(data.message, 'success');
+    const sendData = await sendRes.json();
+    showToast(`🚀 Dispatched automated outreach to ${leadIds.length} approved stores!`, 'success');
+    fetchStats();
+    triggerSearchFilter();
   } catch (e) {
-    showToast('Batch send failed: ' + e.message, 'error');
+    showToast('Batch send error: ' + e.message, 'error');
   }
 }
+
 
 // Test Email Modal
 function openTestEmailModal() {
