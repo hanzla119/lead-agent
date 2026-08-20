@@ -661,10 +661,11 @@ function saveCurrentModalEdits() {
 
 async function approveModalLead() {
   saveCurrentModalEdits();
+  if (!state.selectedLead) return;
   const leadId = state.selectedLead.id;
   
   try {
-    await fetch(`/api/leads/${leadId}/review`, {
+    const res = await fetch(`/api/leads/${leadId}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -673,7 +674,10 @@ async function approveModalLead() {
         pitch_variants: state.selectedLead.pitch_variants
       })
     });
-    showToast(`Approved ${state.selectedLead.store_name} for batch outreach queue!`, 'success');
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
+    showToast(`Approved ${state.selectedLead.store_name} for batch outreach queue! ⚡`, 'success');
     closeLeadModal();
     fetchStats();
     triggerSearchFilter();
@@ -684,11 +688,14 @@ async function approveModalLead() {
 
 async function quickApprove(leadId) {
   try {
-    await fetch(`/api/leads/${leadId}/review`, {
+    const res = await fetch(`/api/leads/${leadId}/review`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: 'approved' })
     });
+    if (!res.ok) {
+      throw new Error(`Server returned status ${res.status}`);
+    }
     showToast('Lead marked as Approved ✓', 'success');
     fetchStats();
     triggerSearchFilter();
@@ -696,6 +703,7 @@ async function quickApprove(leadId) {
     showToast('Failed to approve: ' + e.message, 'error');
   }
 }
+
 
 async function deleteLeadAction(leadId) {
   if (!confirm('Are you sure you want to delete this lead?')) return;
