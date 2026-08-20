@@ -39,7 +39,8 @@ ECOMMERCE_SIGNALS = [
     "shopify", "woocommerce", "bigcommerce", "klaviyo", "shop pay", "apple pay"
 ]
 
-def audit_website(url: str, timeout: int = 8) -> Tuple[Dict[str, Any], str]:
+def audit_website(url: str, timeout: int = 4) -> Tuple[Dict[str, Any], str]:
+
     """
     Audits a live store URL for e-commerce validity, Meta Pixel, GA4, TikTok Pixel,
     Google Ads, Klaviyo, Reviews, platform stack, and CRO opportunities.

@@ -156,71 +156,76 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
             ACTIVE_CAMPAIGN["progress_percentage"] = min(98, int(25 + ((valid_stores_count + 1) / req.target_count) * 72))
             await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
 
-            # Audit Website & E-commerce Verification
-            audit_res, html_content = audit_website(url)
-            
-            # If domain is not an active e-commerce store, skip saving junk
-            if not audit_res.get("is_valid_store", False):
-                reason = audit_res.get("rejection_reason", "Non-store page")
-                ACTIVE_CAMPAIGN["logs"].append(f"⚠️ Skipped {domain} ({reason}).")
-                await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
+            try:
+                # Audit Website & E-commerce Verification
+                audit_res, html_content = audit_website(url)
+                
+                # If domain is not an active e-commerce store, skip saving junk
+                if not audit_res.get("is_valid_store", False):
+                    reason = audit_res.get("rejection_reason", "Non-store page")
+                    ACTIVE_CAMPAIGN["logs"].append(f"⚠️ Skipped {domain} ({reason}).")
+                    await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
+                    continue
+
+                valid_stores_count += 1
+                ACTIVE_CAMPAIGN["leads_found"] = valid_stores_count
+                
+                # Enrich Contacts
+                enrich_res = enrich_store_contacts(url, initial_html=html_content)
+
+                # Combine lead data
+                lead_dict = {
+                    "domain": domain,
+                    "store_name": store_name,
+                    "url": url,
+                    "niche": req.niche,
+                    "platform": audit_res.get("platform") or req.platform,
+                    "country": req.country,
+                    "est_monthly_revenue": audit_res.get("est_monthly_revenue", "$10k-$50k"),
+                    "lead_score": audit_res.get("lead_score", 50),
+                    "lead_tier": audit_res.get("lead_tier", "Silver"),
+                    "email": enrich_res.get("email"),
+                    "email_status": enrich_res.get("email_status", "not_found"),
+                    "phone": enrich_res.get("phone"),
+                    "instagram": enrich_res.get("instagram"),
+                    "linkedin": enrich_res.get("linkedin"),
+                    "facebook": enrich_res.get("facebook"),
+                    "tiktok": enrich_res.get("tiktok"),
+                    "reddit_username": None,
+                    "founder_name": enrich_res.get("founder_name"),
+                    "founder_title": "Founder & Owner",
+                    "has_google_ads": audit_res.get("has_google_ads", False),
+                    "has_meta_pixel": audit_res.get("has_meta_pixel", False),
+                    "has_ga4": audit_res.get("has_ga4", False),
+                    "has_tiktok_pixel": audit_res.get("has_tiktok_pixel", False),
+                    "audit_notes": audit_res.get("audit_notes", ""),
+                    "primary_opportunity": audit_res.get("primary_opportunity", ""),
+                    "pitch_variants": [],
+                    "multi_channel_pitches": {},
+                    "selected_pitch_index": 0,
+                    "review_status": "pending",
+                    "tags": [f"tier-{audit_res.get('lead_tier', 'Silver').lower()}"]
+                }
+
+                # Generate Gemini Pitches (both email variants and multi-channel suite)
+                pitches, multi_channel = generate_pitches_with_gemini(lead_dict)
+                lead_dict["pitch_variants"] = pitches
+                lead_dict["multi_channel_pitches"] = multi_channel
+
+                if enrich_res.get("email"):
+                    ACTIVE_CAMPAIGN["leads_contactable"] += 1
+                    ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}). Score: {lead_dict['lead_score']}/100.")
+                else:
+                    ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}). Score: {lead_dict['lead_score']}/100.")
+
+                # Save to Database
+                save_lead(lead_dict)
+                await manager.broadcast({"type": "lead_discovered", "data": lead_dict})
+                await asyncio.sleep(0.1)
+
+            except Exception as e_inner:
+                ACTIVE_CAMPAIGN["logs"].append(f"⚠️ Notice on {domain}: {str(e_inner)}")
                 continue
-
-            valid_stores_count += 1
-            ACTIVE_CAMPAIGN["leads_found"] = valid_stores_count
-            
-            # Enrich Contacts
-            enrich_res = enrich_store_contacts(url, initial_html=html_content)
-
-            # Combine lead data
-            lead_dict = {
-                "domain": domain,
-                "store_name": store_name,
-                "url": url,
-                "niche": req.niche,
-                "platform": audit_res.get("platform") or req.platform,
-                "country": req.country,
-                "est_monthly_revenue": audit_res.get("est_monthly_revenue", "$10k-$50k"),
-                "lead_score": audit_res.get("lead_score", 50),
-                "lead_tier": audit_res.get("lead_tier", "Silver"),
-                "email": enrich_res.get("email"),
-                "email_status": enrich_res.get("email_status", "not_found"),
-                "phone": enrich_res.get("phone"),
-                "instagram": enrich_res.get("instagram"),
-                "linkedin": enrich_res.get("linkedin"),
-                "facebook": enrich_res.get("facebook"),
-                "tiktok": enrich_res.get("tiktok"),
-                "reddit_username": None,
-                "founder_name": enrich_res.get("founder_name"),
-                "founder_title": "Founder & Owner",
-                "has_google_ads": audit_res.get("has_google_ads", False),
-                "has_meta_pixel": audit_res.get("has_meta_pixel", False),
-                "has_ga4": audit_res.get("has_ga4", False),
-                "has_tiktok_pixel": audit_res.get("has_tiktok_pixel", False),
-                "audit_notes": audit_res.get("audit_notes", ""),
-                "primary_opportunity": audit_res.get("primary_opportunity", ""),
-                "pitch_variants": [],
-                "multi_channel_pitches": {},
-                "selected_pitch_index": 0,
-                "review_status": "pending",
-                "tags": [f"tier-{audit_res.get('lead_tier', 'Silver').lower()}"]
-            }
-
-            # Generate Gemini Pitches (both email variants and multi-channel suite)
-            pitches, multi_channel = generate_pitches_with_gemini(lead_dict)
-            lead_dict["pitch_variants"] = pitches
-            lead_dict["multi_channel_pitches"] = multi_channel
-
-            if enrich_res.get("email"):
-                ACTIVE_CAMPAIGN["leads_contactable"] += 1
-                ACTIVE_CAMPAIGN["logs"].append(f"📧 Verified email for {store_name} ({enrich_res['email']}). Score: {lead_dict['lead_score']}/100.")
-            else:
-                ACTIVE_CAMPAIGN["logs"].append(f"ℹ️ {store_name}: Scraped technical audit ({lead_dict['primary_opportunity']}). Score: {lead_dict['lead_score']}/100.")
-
-            # Save to Database
-            save_lead(lead_dict)
-            await manager.broadcast({"type": "lead_discovered", "data": lead_dict})
-            await asyncio.sleep(0.2)
 
         ACTIVE_CAMPAIGN["status"] = "completed"
         ACTIVE_CAMPAIGN["current_step"] = "Lead generation pipeline completed!"
@@ -234,6 +239,7 @@ async def run_lead_generation_pipeline(campaign_id: str, req: CampaignRequest):
             ACTIVE_CAMPAIGN["current_step"] = f"Error: {str(e)}"
             ACTIVE_CAMPAIGN["logs"].append(f"❌ Pipeline error: {str(e)}")
             await manager.broadcast({"type": "campaign_update", "data": ACTIVE_CAMPAIGN})
+
 
 # API Routes
 @app.post("/api/campaign/start")
