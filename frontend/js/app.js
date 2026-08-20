@@ -986,6 +986,12 @@ function exportCSV() {
   window.location.href = `/api/export/csv?privacy_mode=${state.privacyMode}`;
 }
 
+function exportDatabase() {
+  showToast('Preparing full SQLite database backup download... 💾', 'success');
+  window.location.href = '/api/export/database';
+}
+
+
 function escapeHtml(str) {
   if (!str) return '';
   return String(str)

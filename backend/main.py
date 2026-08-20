@@ -521,6 +521,15 @@ async def export_csv(privacy_mode: bool = Query(False)):
         headers={"Content-Disposition": "attachment; filename=apollo_leads_export.csv"}
     )
 
+@app.get("/api/export/database")
+async def export_database():
+    import os
+    db_path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "leads_data.db")
+    if not os.path.exists(db_path):
+        db_path = "leads_data.db"
+    return FileResponse(db_path, filename="apollo_leads_backup.db", media_type="application/x-sqlite3")
+
+
 # Static files for frontend
 FRONTEND_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "frontend")
 if os.path.exists(FRONTEND_DIR):

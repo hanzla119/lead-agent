@@ -36,7 +36,9 @@ EXCLUDED_DOMAINS = {
     "asos.com", "zalando.co.uk", "zalando.com", "wayfair.co.uk", "wayfair.com",
     "overstock.com", "argos.co.uk", "currys.co.uk", "johnlewis.com", "next.co.uk",
     "footlocker.co.uk", "footlocker.com", "office.co.uk", "schuh.co.uk",
+    "hollandandbarrett.com", "boots.com", "superdrug.com", "myprotein.com", "bulk.com",
     # Mega Brands & Multi-Brand Department Stores
+
     "nike.com", "adidas.com", "puma.com", "underarmour.com", "reebok.com",
     "hm.com", "gap.com", "zara.com", "mango.com", "uniqlo.com", "boohoo.com",
     "prettylittlething.com", "nastygal.com", "missguided.com",
@@ -163,11 +165,18 @@ def is_excluded(domain: str, country: str = "") -> bool:
     if not domain or len(domain) < 3:
         return True
         
-    parts = domain.lower().split(".")
+    dom_lower = domain.lower()
+    parts = dom_lower.split(".")
     tld = parts[-1]
     if tld in EXCLUDED_TLDS or any(p in EXCLUDED_TLDS for p in parts):
         return True
         
+    # Check for SaaS, Spy Tools, Themes & Agency keywords in domain base
+    base_name = parts[0]
+    saas_patterns = ["theme", "themes", "spy", "leads", "agency", "proxy", "dropship", "scraper", "browser", "plugin", "hosting", "software"]
+    if any(base_name.endswith(pat) or base_name.startswith(pat) for pat in saas_patterns):
+        return True
+
     # Check if foreign ccTLD for the selected target country
     if country:
         foreign_list = FOREIGN_TLDS_BY_COUNTRY.get(country.upper(), [])
@@ -177,10 +186,11 @@ def is_excluded(domain: str, country: str = "") -> bool:
                 
     for ex in EXCLUDED_DOMAINS:
         ex_base = ex.split(".")[0]
-        if domain == ex or domain.endswith("." + ex) or ex_base in parts:
+        if domain == ex or domain.endswith("." + ex) or ex_base == base_name:
             return True
             
     return False
+
 
 def expand_niche_keywords(niche: str) -> List[str]:
     nl = niche.lower().strip()
@@ -425,30 +435,117 @@ def get_curated_niche_seeds(niche: str, country: str) -> List[Dict[str, Any]]:
 
 def discover_leads(niche: str, platform: str = "Shopify", country: str = "UK", limit: int = 10) -> List[Dict[str, Any]]:
     """
-    Autonomous high-capacity, high-accuracy e-commerce store discovery engine.
-    Retrieves verified e-commerce brand storefronts matching niche, platform, and country,
-    delivering instant 0ms latency with 100% genuine storefronts.
+    Autonomous high-capacity e-commerce store discovery engine.
+    1. Runs live web search dorks across DuckDuckGo, Bing, and DDG Lite in parallel.
+    2. Deep scrapes curated listicles/directories to extract genuine brand storefronts.
+    3. Merges and supplements with verified high-converting registry seed stores.
     """
+    from concurrent.futures import ThreadPoolExecutor, as_completed
     from backend.modules.store_registry import query_store_registry
     
     discovered: Dict[str, Dict[str, Any]] = {}
     needed = max(limit, 10)
     
-    reg_stores = query_store_registry(niche, platform, country, limit=needed)
-    for s in reg_stores:
-        dom = s["domain"]
-        if dom not in discovered and not is_excluded(dom, country):
-            discovered[dom] = {
-                "domain": dom,
-                "store_name": s["store_name"],
-                "url": s["url"],
-                "niche": niche,
-                "platform": s.get("platform", platform),
-                "country": s.get("country", country),
-                "title": s["store_name"],
-                "snippet": f"Verified independent {niche} brand in {country}"
-            }
-            if len(discovered) >= needed:
-                break
+    # 1. Build dynamic search queries for target niche & country
+    queries = build_search_queries(niche, platform, country, target_count=needed)
+    
+    def execute_live_query(query_str: str) -> List[Dict[str, Any]]:
+        batch_results = []
+        # Try DDGS first
+        try:
+            try:
+                from ddgs import DDGS
+            except ImportError:
+                from duckduckgo_search import DDGS
+            ddgs_client = DDGS()
+            raw_ddg = list(ddgs_client.text(query_str, max_results=12))
+            for item in raw_ddg:
+                h = item.get("href") or item.get("link")
+                t = item.get("title", "")
+                if h and h.startswith("http"):
+                    batch_results.append({"url": h, "title": t, "snippet": item.get("body", "")})
+        except Exception:
+            pass
+            
+        # Try DDG Lite
+        if len(batch_results) < 3:
+            lite_res = search_ddg_lite(query_str)
+            batch_results.extend(lite_res)
+            
+        # Try Bing
+        if len(batch_results) < 3:
+            bing_res = search_bing(query_str)
+            batch_results.extend(bing_res)
+            
+        return batch_results
+
+    # Run queries in parallel
+    with ThreadPoolExecutor(max_workers=6) as executor:
+        futures = {executor.submit(execute_live_query, q): q for q in queries[:10]}
+        for future in as_completed(futures):
+            try:
+                search_hits = future.result()
+                for hit in search_hits:
+                    raw_url = hit.get("url", "")
+                    dom = extract_domain(raw_url)
+                    if not dom or is_excluded(dom, country) or dom in discovered:
+                        continue
+                        
+                    # If this is a listicle or directory article, harvest the brand links inside
+                    url_lower = raw_url.lower()
+                    if any(w in url_lower for w in ["best-", "top-", "list", "guide", "brands", "directory", "stores", "roundup"]):
+                        article_stores = scrape_listicle_store_links(raw_url, niche, country)
+                        for ast in article_stores:
+                            adom = ast["domain"]
+                            if adom and not is_excluded(adom, country) and adom not in discovered:
+                                discovered[adom] = {
+                                    "domain": adom,
+                                    "store_name": ast["store_name"],
+                                    "url": ast["url"],
+                                    "niche": niche,
+                                    "platform": platform,
+                                    "country": country,
+                                    "title": ast["title"],
+                                    "snippet": ast.get("snippet", "")
+                                }
+                                if len(discovered) >= needed:
+                                    break
+                    else:
+                        st_name = clean_store_name(hit.get("title", ""), dom)
+                        discovered[dom] = {
+                            "domain": dom,
+                            "store_name": st_name,
+                            "url": f"https://{dom}",
+                            "niche": niche,
+                            "platform": platform,
+                            "country": country,
+                            "title": hit.get("title", st_name),
+                            "snippet": hit.get("snippet", "")
+                        }
+                        
+                    if len(discovered) >= needed:
+                        break
+            except Exception:
+                continue
+
+    # 2. If needed, supplement with curated registry seed stores to guarantee target batch size
+    if len(discovered) < needed:
+        reg_stores = query_store_registry(niche, platform, country, limit=needed)
+        for s in reg_stores:
+            dom = s["domain"]
+            if dom not in discovered and not is_excluded(dom, country):
+                discovered[dom] = {
+                    "domain": dom,
+                    "store_name": s["store_name"],
+                    "url": s["url"],
+                    "niche": niche,
+                    "platform": s.get("platform", platform),
+                    "country": s.get("country", country),
+                    "title": s["store_name"],
+                    "snippet": f"Verified independent {niche} brand in {country}"
+                }
+                if len(discovered) >= needed:
+                    break
 
     return list(discovered.values())[:limit]
+
